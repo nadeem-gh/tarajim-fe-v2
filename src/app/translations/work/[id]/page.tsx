@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { apiFetch, submitSentence, getTranslation, getMe, whisperSTT } from '@/lib/api';
+import { apiFetch, submitSentence, updateSentence, getTranslation, getMe, whisperSTT } from '@/lib/api';
 import { useParams, useRouter } from 'next/navigation';
 
 export default function TranslationWorkPage() {
@@ -15,6 +15,8 @@ export default function TranslationWorkPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
 
   useEffect(() => {
     // Check authentication and role
@@ -60,14 +62,21 @@ export default function TranslationWorkPage() {
     })();
   }, [translationId, router]);
 
+  // Cleanup effect to release microphone when component unmounts
+  useEffect(() => {
+    return () => {
+      if (audioStream) {
+        audioStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [audioStream]);
+
   async function handleSubmit() {
     if (!currentSentence || !translatedText.trim()) return;
     
     setError(null);
     try {
-      await submitSentence({
-        translation: translationId,
-        sentence: currentSentence.id,
+      await updateSentence(currentSentence.id, {
         translated_text: translatedText
       });
       
@@ -104,14 +113,17 @@ export default function TranslationWorkPage() {
       
       // Get user media for audio recording
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      setAudioStream(stream);
+      
+      const recorder = new MediaRecorder(stream);
+      setMediaRecorder(recorder);
       const audioChunks: BlobPart[] = [];
       
-      mediaRecorder.ondataavailable = (event) => {
+      recorder.ondataavailable = (event) => {
         audioChunks.push(event.data);
       };
       
-      mediaRecorder.onstop = async () => {
+      recorder.onstop = async () => {
         try {
           // Create audio blob
           const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
@@ -119,8 +131,8 @@ export default function TranslationWorkPage() {
           // Convert to File object
           const audioFile = new File([audioBlob], 'recording.wav', { type: 'audio/wav' });
           
-          // Get target language for Whisper
-          const targetLanguage = translation.request?.book_target_language || 'en';
+          // Always use Urdu as the target language for now
+          const targetLanguage = 'ur'; // Force Urdu language
           
           // Call Whisper STT API
           const result = await whisperSTT(audioFile, targetLanguage);
@@ -134,24 +146,25 @@ export default function TranslationWorkPage() {
           setError('Failed to process audio: ' + e.message);
         } finally {
           setIsRecording(false);
+          setMediaRecorder(null);
           // Stop all tracks to release microphone
           stream.getTracks().forEach(track => track.stop());
+          setAudioStream(null);
         }
       };
       
       // Start recording
-      mediaRecorder.start();
-      
-      // Stop recording after 10 seconds or when user clicks stop
-      setTimeout(() => {
-        if (mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-        }
-      }, 10000);
+      recorder.start();
       
     } catch (e: any) {
       setError('Failed to start audio recording: ' + e.message);
       setIsRecording(false);
+    }
+  }
+
+  function handleStopRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
     }
   }
 
@@ -230,17 +243,29 @@ export default function TranslationWorkPage() {
               {/* Speech Controls */}
               <div className="space-y-3">
                 <div className="flex gap-2">
-                  <button
-                    onClick={handleSpeechToText}
-                    disabled={isRecording}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:bg-gray-400 hover:bg-blue-700 transition"
-                  >
-                    {isRecording ? '🎤 Recording...' : '🎤 Record Audio'}
-                  </button>
+                  {!isRecording ? (
+                    <button
+                      onClick={handleSpeechToText}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    >
+                      🎤 Start Recording
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleStopRecording}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                    >
+                      ⏹️ Stop Recording
+                    </button>
+                  )}
                   
                   <div className="text-sm text-gray-600 flex items-center">
                     <span className="mr-2">💡</span>
-                    Record audio in {translation.request?.book_target_language || 'target language'}
+                    {isRecording ? (
+                      <span className="text-red-600 font-medium">Recording in progress... Click Stop when done</span>
+                    ) : (
+                      <span>Record audio in Urdu (اردو)</span>
+                    )}
                   </div>
                 </div>
                 

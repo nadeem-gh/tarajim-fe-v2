@@ -282,6 +282,14 @@ export async function submitSentence(payload: { translation: string; translated_
   return apiFetch('/translations/sentences', { method: 'POST', body: JSON.stringify(payload) });
 }
 
+export async function updateSentence(sentenceId: string, payload: { translated_text: string }) {
+  return apiFetch(`/translations/sentences/${sentenceId}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export async function getApplicationTranslations(applicationId: string) {
+  return apiFetch(`/translations/application/${applicationId}`);
+}
+
 export async function reviewTranslation(id: string, status: 'approved' | 'rejected') {
   return apiFetch(`/translations/${id}/review`, { method: 'PUT', body: JSON.stringify({ status }) });
 }
@@ -380,6 +388,10 @@ export async function fundEscrow(escrowId: string) {
 
 export async function releaseEscrow(escrowId: string) {
   return apiFetch(`/payments/escrow/${escrowId}/release`, { method: 'PUT' });
+}
+
+export async function completeMilestone(milestoneId: string) {
+  return apiFetch(`/payments/milestones/${milestoneId}/complete`, { method: 'PUT' });
 }
 
 // Speech/TTS helpers

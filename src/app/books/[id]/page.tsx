@@ -941,7 +941,7 @@ export default function BookDetailPage() {
                                 if (relatedTranslation) {
                                   return (
                                     <Link 
-                                      href={`/translations/work/${relatedTranslation.id}`}
+                                      href={`/translations/work/application/${app.id}`}
                                       className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition font-medium"
                                     >
                                       🚀 Start Translation Work

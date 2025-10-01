@@ -1,9 +1,17 @@
+import { Hero } from '@/components/Hero'
+import { Features } from '@/components/Features'
+import { Stats } from '@/components/Stats'
+import { Testimonials } from '@/components/Testimonials'
+import { CTA } from '@/components/CTA'
+
 export default function Home() {
   return (
-    <main className="p-6">
-      <h1 className="text-2xl font-semibold">Tarajim</h1>
-      <p className="text-gray-600 mt-2">Next.js frontend scaffold is ready.</p>
-    </main>
-  );
+    <div className="min-h-screen">
+      <Hero />
+      <Features />
+      <Stats />
+      <Testimonials />
+      <CTA />
+    </div>
+  )
 }
-

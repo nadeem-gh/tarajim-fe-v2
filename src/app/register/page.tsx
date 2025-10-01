@@ -1,43 +1,189 @@
-'use client';
-import { useState } from 'react';
-import { register } from '@/lib/api';
-import { useRouter } from 'next/navigation';
+'use client'
 
-export default function RegisterPage() {
-  const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'reader'|'requester'|'translator'>('reader');
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+import { useState } from 'react'
+import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+export default function Register() {
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    first_name: '',
+    last_name: '',
+    role: 'reader' as 'reader' | 'requester' | 'translator',
+    password: '',
+    password_confirm: '',
+  })
+  const [loading, setLoading] = useState(false)
+  const { register } = useAuth()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+
     try {
-      await register({ email, username, password, role });
-      router.push('/login');
-    } catch (err: any) {
-      setError(err.message || 'Registration failed');
+      await register(formData)
+    } catch (error) {
+      // Error is handled in the auth context
+    } finally {
+      setLoading(false)
     }
   }
 
-  return (
-    <main className="max-w-md mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-4">Create account</h1>
-      <form onSubmit={onSubmit} className="space-y-4">
-        <input className="w-full border p-2" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input className="w-full border p-2" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
-        <input className="w-full border p-2" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <select className="w-full border p-2" value={role} onChange={(e) => setRole(e.target.value as any)}>
-          <option value="reader">Reader</option>
-          <option value="requester">Requester</option>
-          <option value="translator">Translator</option>
-        </select>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        <button className="bg-blue-600 text-white px-4 py-2 rounded" type="submit">Sign up</button>
-      </form>
-    </main>
-  );
-}
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    })
+  }
 
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Create your account
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Or{' '}
+            <Link href="/login" className="font-medium text-primary-600 hover:text-primary-500">
+              sign in to your existing account
+            </Link>
+          </p>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                Username
+              </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                placeholder="Username"
+                value={formData.username}
+                onChange={handleChange}
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                Email address
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                placeholder="Email address"
+                value={formData.email}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="first_name" className="block text-sm font-medium text-gray-700">
+                  First name
+                </label>
+                <input
+                  id="first_name"
+                  name="first_name"
+                  type="text"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  placeholder="First name"
+                  value={formData.first_name}
+                  onChange={handleChange}
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="last_name" className="block text-sm font-medium text-gray-700">
+                  Last name
+                </label>
+                <input
+                  id="last_name"
+                  name="last_name"
+                  type="text"
+                  required
+                  className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  placeholder="Last name"
+                  value={formData.last_name}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+                Account type
+              </label>
+              <select
+                id="role"
+                name="role"
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                value={formData.role}
+                onChange={handleChange}
+              >
+                <option value="reader">Reader - Buy and read translated books</option>
+                <option value="requester">Requester - Request translations and fund projects</option>
+                <option value="translator">Translator - Provide translation services</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password_confirm" className="block text-sm font-medium text-gray-700">
+                Confirm password
+              </label>
+              <input
+                id="password_confirm"
+                name="password_confirm"
+                type="password"
+                autoComplete="new-password"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                placeholder="Confirm password"
+                value={formData.password_confirm}
+                onChange={handleChange}
+              />
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+            >
+              {loading ? 'Creating account...' : 'Create account'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}

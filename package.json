@@ -1,28 +1,46 @@
 {
   "name": "tarajim-fe-v2",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev",
     "build": "next build",
-    "start": "next start -p 3000",
-    "lint": "next lint"
+    "start": "next start",
+    "lint": "next lint",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
-    "next": "14.2.9",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "zustand": "4.5.5"
+    "@headlessui/react": "^1.7.17",
+    "@heroicons/react": "^2.0.18",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.0.1",
+    "axios": "^1.6.2",
+    "clsx": "^2.0.0",
+    "date-fns": "^2.30.0",
+    "framer-motion": "^10.16.16",
+    "lucide-react": "^0.294.0",
+    "next": "^14.2.33",
+    "postcss": "^8",
+    "react": "^18",
+    "react-audio-player": "^0.17.0",
+    "react-dom": "^18",
+    "react-dropzone": "^14.2.3",
+    "react-hook-form": "^7.48.2",
+    "react-hot-toast": "^2.4.1",
+    "react-markdown": "^9.0.1",
+    "react-query": "^3.39.3",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5"
   },
   "devDependencies": {
-    "autoprefixer": "10.4.20",
-    "postcss": "8.4.49",
-    "tailwindcss": "3.4.15",
-    "typescript": "5.6.3",
-    "@types/react": "18.3.12",
-    "@types/node": "20.16.11",
-    "eslint": "8.57.1",
-    "eslint-config-next": "14.2.9"
+    "@playwright/test": "^1.55.1",
+    "eslint": "^8",
+    "eslint-config-next": "14.0.4"
   }
 }
-

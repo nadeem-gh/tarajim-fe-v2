@@ -74,7 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.success('Login successful!')
       router.push('/dashboard')
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Login failed')
+      // Show generic error in toast
+      toast.error('Login failed. Please check your credentials.')
       throw error
     }
   }
@@ -92,7 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.success('Registration successful!')
       router.push('/dashboard')
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Registration failed')
+      // Show generic error in toast
+      toast.error('Registration failed. Please check your information.')
       throw error
     }
   }

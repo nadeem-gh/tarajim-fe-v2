@@ -23,7 +23,7 @@ api.interceptors.request.use(
   }
 )
 
-// Response interceptor to handle token refresh
+// Response interceptor to handle token refresh and error formatting
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -49,6 +49,20 @@ api.interceptors.response.use(
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
         window.location.href = '/login'
+      }
+    }
+
+    // Handle 500 errors - ensure we have proper error structure
+    if (error.response?.status >= 500) {
+      // If the response is HTML (Django's default 500 page), create a proper error structure
+      if (error.response.headers['content-type']?.includes('text/html')) {
+        error.response.data = {
+          error: {
+            type: 'InternalServerError',
+            message: 'An internal server error occurred',
+            details: 'Please try again later'
+          }
+        }
       }
     }
 

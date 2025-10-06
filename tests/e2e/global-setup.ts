@@ -9,7 +9,7 @@ async function globalSetup(config: FullConfig) {
     
     // Wait for backend to be ready
     console.log('Waiting for backend to be ready...');
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
     
     // Create test users
     console.log('Creating test users...');
@@ -22,7 +22,7 @@ async function globalSetup(config: FullConfig) {
     console.log('Test users created:', usersData);
     
     // Wait a bit for users to be fully created
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
     
     // Create test books
     console.log('Creating test books...');
@@ -35,7 +35,7 @@ async function globalSetup(config: FullConfig) {
     console.log('Test books created:', booksData);
     
     // Wait a bit for books to be fully created
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
     
     // Create test data
     console.log('Creating additional test data...');

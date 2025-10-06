@@ -27,7 +27,22 @@ export default function RootLayout({
               {children}
             </main>
           </div>
-          <Toaster position="top-right" />
+          <Toaster 
+            position="top-right" 
+            toastOptions={{
+              duration: 2000, // 2 seconds instead of default 4 seconds
+              style: {
+                background: '#363636',
+                color: '#fff',
+              },
+              success: {
+                duration: 1500, // Success messages show for 1.5 seconds
+              },
+              error: {
+                duration: 3000, // Error messages show for 3 seconds
+              },
+            }}
+          />
         </Providers>
       </body>
     </html>

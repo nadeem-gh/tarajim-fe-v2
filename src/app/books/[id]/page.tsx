@@ -6,11 +6,15 @@ import { useParams } from 'next/navigation'
 import { BookOpenIcon, MicrophoneIcon, SpeakerWaveIcon, ClockIcon, DocumentTextIcon, UserPlusIcon } from '@heroicons/react/24/outline'
 import Link from 'next/link'
 import { useState } from 'react'
+import toast from 'react-hot-toast'
+import TranslationWorkflowPanel from '@/components/TranslationWorkflowPanel'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function BookDetail() {
   const params = useParams()
-  const bookId = params.id
+  const bookId = Array.isArray(params.id) ? params.id[0] : params.id
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [showApplicationModal, setShowApplicationModal] = useState(false)
 
@@ -27,6 +31,25 @@ export default function BookDetail() {
     async () => {
       const response = await api.get(`/books/${bookId}/stats/`)
       return response.data
+    }
+  )
+
+  const { data: applicationStatus } = useQuery(
+    ['book-application-status', bookId],
+    async () => {
+      const response = await api.get(`/books/${bookId}/application-status/`)
+      return response.data
+    }
+  )
+
+  const { data: translationRequests } = useQuery(
+    ['book-translation-requests', bookId],
+    async () => {
+      const response = await api.get(`/books/${bookId}/translation-requests/`)
+      return response.data
+    },
+    {
+      enabled: book?.can_send_request // Only fetch for requesters
     }
   )
 
@@ -53,7 +76,57 @@ export default function BookDetail() {
     {
       onSuccess: () => {
         queryClient.invalidateQueries(['book-detail', bookId])
+        queryClient.invalidateQueries(['book-application-status', bookId])
         setShowApplicationModal(false)
+      }
+    }
+  )
+
+  // Accept application mutation
+  const acceptApplicationMutation = useMutation(
+    async ({ applicationId, data }: { applicationId: number, data: any }) => {
+      const response = await api.post(`/books/${bookId}/applications/${applicationId}/accept/`, data)
+      return response.data
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['book-translation-requests', bookId])
+        queryClient.invalidateQueries(['book-detail', bookId])
+      }
+    }
+  )
+
+  // Reject application mutation
+  const rejectApplicationMutation = useMutation(
+    async ({ applicationId, data }: { applicationId: number, data: any }) => {
+      const response = await api.post(`/books/${bookId}/applications/${applicationId}/reject/`, data)
+      return response.data
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['book-translation-requests', bookId])
+        queryClient.invalidateQueries(['book-detail', bookId])
+      }
+    }
+  )
+
+  // Accept multiple applications mutation
+  const acceptMultipleApplicationsMutation = useMutation(
+    async ({ applicationIds, data }: { applicationIds: number[], data: any }) => {
+      const response = await api.post(`/books/${bookId}/applications/accept-multiple/`, {
+        application_ids: applicationIds,
+        ...data
+      })
+      return response.data
+    },
+    {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries(['book-translation-requests', bookId])
+        queryClient.invalidateQueries(['book-detail', bookId])
+        toast.success(`${data.applications.length} applications accepted successfully!`)
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.error || 'Failed to accept applications')
       }
     }
   )
@@ -197,19 +270,8 @@ export default function BookDetail() {
                 </a>
               )}
               
-              {/* Send Request Button - Only for requesters */}
-              {book.can_send_request && (
-                <button
-                  onClick={() => setShowRequestModal(true)}
-                  className="w-full flex items-center justify-center px-4 py-2 border border-primary-600 text-sm font-medium rounded-md text-primary-600 bg-white hover:bg-primary-50"
-                >
-                  <DocumentTextIcon className="h-5 w-5 mr-2" />
-                  Send Request
-                </button>
-              )}
-              
               {/* Submit Application Button - Only for translators */}
-              {book.can_start_translation && (
+              {book.can_start_translation && !applicationStatus?.has_applied && (
                 <button
                   onClick={() => setShowApplicationModal(true)}
                   className="w-full flex items-center justify-center px-4 py-2 border border-green-600 text-sm font-medium rounded-md text-green-600 bg-white hover:bg-green-50"
@@ -229,6 +291,109 @@ export default function BookDetail() {
               </Link>
             </div>
           </div>
+
+          {/* Application Status */}
+          {applicationStatus?.has_applied && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Application History</h3>
+              
+              {/* Current Application Status */}
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h4 className="text-md font-medium text-gray-900 mb-3">Latest Application</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Status</span>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      applicationStatus.application_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      applicationStatus.application_status === 'accepted' ? 'bg-green-100 text-green-800' :
+                      applicationStatus.application_status === 'rejected' ? 'bg-red-100 text-red-800' :
+                      applicationStatus.application_status === 'withdrawn' ? 'bg-gray-100 text-gray-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {applicationStatus.application_status?.charAt(0).toUpperCase() + applicationStatus.application_status?.slice(1)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Applied At</span>
+                    <span className="text-sm font-medium">
+                      {new Date(applicationStatus.applied_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  {applicationStatus.reviewed_at && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Reviewed At</span>
+                      <span className="text-sm font-medium">
+                        {new Date(applicationStatus.reviewed_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                  {applicationStatus.review_notes && (
+                    <div className="mt-3">
+                      <span className="text-sm text-gray-600">Review Notes</span>
+                      <p className="text-sm text-gray-800 mt-1">{applicationStatus.review_notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* All Applications History */}
+              {applicationStatus.all_applications && applicationStatus.all_applications.length > 1 && (
+                <div>
+                  <h4 className="text-md font-medium text-gray-900 mb-3">Application History</h4>
+                  <div className="space-y-3">
+                    {applicationStatus.all_applications.map((application: any, index: number) => (
+                      <div key={application.id} className={`p-3 rounded-lg border ${
+                        application.status === 'rejected' ? 'border-red-200 bg-red-50' :
+                        application.status === 'accepted' ? 'border-green-200 bg-green-50' :
+                        application.status === 'pending' ? 'border-yellow-200 bg-yellow-50' :
+                        'border-gray-200 bg-gray-50'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-900">
+                            Application #{applicationStatus.all_applications.length - index}
+                          </span>
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            application.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            application.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                            application.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            application.status === 'withdrawn' ? 'bg-gray-100 text-gray-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {application.status?.charAt(0).toUpperCase() + application.status?.slice(1)}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mb-2">
+                          Applied: {new Date(application.created_at).toLocaleDateString()}
+                          {application.reviewed_at && (
+                            <span> • Reviewed: {new Date(application.reviewed_at).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                        {application.review_notes && (
+                          <div className="text-xs text-gray-600">
+                            <strong>Notes:</strong> {application.review_notes}
+                          </div>
+                        )}
+                        {application.status === 'rejected' && (
+                          <div className="mt-2 text-xs text-red-600">
+                            💡 <strong>Tip:</strong> Consider improving your cover letter or proposed rate for future applications.
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Translation Workflow Panel */}
+          {user && user.role !== 'reader' && (
+            <TranslationWorkflowPanel
+              bookId={bookId}
+              userRole={user.role}
+              onRefresh={() => queryClient.invalidateQueries(['book-workflow', bookId])}
+            />
+          )}
 
           {/* Sample Translations */}
           {book.sample_translations_count > 0 && (
@@ -354,16 +519,16 @@ export default function BookDetail() {
                 e.preventDefault()
                 const formData = new FormData(e.target as HTMLFormElement)
                 submitApplicationMutation.mutate({
-                  message: formData.get('message'),
+                  cover_letter: formData.get('cover_letter'),
                   proposed_rate: parseFloat(formData.get('proposed_rate') as string),
-                  estimated_completion_time: formData.get('estimated_completion_time')
+                  estimated_completion_time: parseInt(formData.get('estimated_completion_time') as string)
                 })
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Message</label>
+                    <label className="block text-sm font-medium text-gray-700">Cover Letter</label>
                     <textarea
-                      name="message"
+                      name="cover_letter"
                       required
                       rows={4}
                       className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
@@ -383,13 +548,14 @@ export default function BookDetail() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Estimated Completion Time</label>
+                    <label className="block text-sm font-medium text-gray-700">Estimated Completion Time (days)</label>
                     <input
-                      type="text"
+                      type="number"
                       name="estimated_completion_time"
                       required
+                      min="1"
                       className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                      placeholder="e.g., 30 days, 2 months"
+                      placeholder="30"
                     />
                   </div>
                 </div>

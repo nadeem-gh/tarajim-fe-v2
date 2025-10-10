@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { Bars3Icon, XMarkIcon, UserCircleIcon } from '@heroicons/react/24/outline'
+import NotificationCenter from './NotificationCenter'
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -44,6 +45,7 @@ export function Navbar() {
                 <span className="text-sm text-gray-700">
                   Welcome, {user.first_name}!
                 </span>
+                <NotificationCenter userId={user.id?.toString()} />
                 <Link
                   href="/dashboard"
                   className="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium"

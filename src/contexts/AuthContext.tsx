@@ -1,8 +1,8 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { api } from '@/lib/api'
+import { api, setGlobalLogout } from '@/lib/api'
 import toast from 'react-hot-toast'
 
 interface User {
@@ -48,14 +48,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = async () => {
     try {
       const token = localStorage.getItem('access_token')
-      if (token) {
+      const refreshToken = localStorage.getItem('refresh_token')
+      console.log('Checking auth with token:', token ? 'Token exists' : 'No token')
+      console.log('Refresh token exists:', refreshToken ? 'Yes' : 'No')
+      
+      if (token && refreshToken) {
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`
         const response = await api.get('/accounts/stats/')
+        console.log('Auth check successful:', response.data.user)
         setUser(response.data.user)
+      } else {
+        console.log('No valid tokens found, clearing auth state')
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        delete api.defaults.headers.common['Authorization']
+        setUser(null)
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.log('Auth check failed:', error.response?.status, error.message)
+      
+      // Clear tokens and reset auth state
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
+      delete api.defaults.headers.common['Authorization']
+      setUser(null)
     } finally {
       setLoading(false)
     }
@@ -99,14 +115,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const logout = () => {
+  const logout = useCallback(() => {
+    console.log('AuthContext: Logout function called')
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     delete api.defaults.headers.common['Authorization']
     setUser(null)
     router.push('/')
     toast.success('Logged out successfully')
-  }
+  }, [router])
+
+  // Register logout function with API interceptor
+  useEffect(() => {
+    console.log('AuthContext: Registering global logout function')
+    setGlobalLogout(logout)
+  }, [logout])
 
   const updateProfile = async (profileData: any) => {
     try {

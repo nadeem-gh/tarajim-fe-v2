@@ -111,6 +111,35 @@ export function handleApiError(error: any, setErrors: (errors: FormErrors) => vo
 }
 
 /**
+ * Extracts a user-friendly error message from an API error response
+ * @param error - The error object from the API call
+ * @param defaultMessage - Default message to show if no specific error is found
+ * @returns User-friendly error message
+ */
+export function extractErrorMessage(error: any, defaultMessage: string = 'An error occurred'): string {
+  if (error.response?.data) {
+    const errorData = error.response.data
+    
+    // Handle structured error response
+    if (errorData.error) {
+      if (typeof errorData.error === 'string') {
+        return errorData.error
+      } else if (errorData.error.message) {
+        return errorData.error.message
+      }
+    } else if (errorData.message) {
+      return errorData.message
+    } else if (typeof errorData === 'string') {
+      return errorData
+    }
+  } else if (error.message) {
+    return error.message
+  }
+  
+  return defaultMessage
+}
+
+/**
  * Creates a generic form submission handler with error handling
  * @param submitFn - The function to call for form submission
  * @param setLoading - Function to set loading state

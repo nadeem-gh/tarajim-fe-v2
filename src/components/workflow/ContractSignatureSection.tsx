@@ -53,7 +53,10 @@ export default function ContractSignatureSection({
       onError: (error: any) => {
         console.error('Contract signing error:', error)
         const errorMessage = extractErrorMessage(error, 'Failed to sign contract')
-        toast.error(errorMessage)
+        const errorMsg = error.response?.data?.error?.message || 
+                        error.response?.data?.message || 
+                        errorMessage
+        toast.error(errorMsg)
       }
     }
   )

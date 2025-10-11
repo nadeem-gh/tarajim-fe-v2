@@ -79,7 +79,10 @@ export default function MilestoneManager({
         onRefresh()
       },
       onError: (error: any) => {
-        toast.error(error.response?.data?.error || 'Failed to create milestone')
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to create milestone'
+        toast.error(errorMessage)
       }
     }
   )

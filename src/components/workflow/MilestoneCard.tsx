@@ -84,7 +84,10 @@ export default function MilestoneCard({
         onUpdate()
       },
       onError: (error: any) => {
-        toast.error(error.response?.data?.error || 'Failed to update milestone')
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to update milestone'
+        toast.error(errorMessage)
       }
     }
   )
@@ -102,7 +105,10 @@ export default function MilestoneCard({
         onUpdate()
       },
       onError: (error: any) => {
-        toast.error(error.response?.data?.error || 'Failed to delete milestone')
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to delete milestone'
+        toast.error(errorMessage)
       }
     }
   )
@@ -138,7 +144,10 @@ export default function MilestoneCard({
       },
       onError: (error: any) => {
         console.error('Assignment error:', error.response?.data)
-        toast.error(error.response?.data?.error || 'Failed to assign milestone')
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to assign milestone'
+        toast.error(errorMessage)
       }
     }
   )
@@ -158,7 +167,10 @@ export default function MilestoneCard({
         onUpdate()
       },
       onError: (error: any) => {
-        toast.error(error.response?.data?.error || 'Failed to update milestone status')
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to update milestone status'
+        toast.error(errorMessage)
       }
     }
   )
@@ -244,7 +256,10 @@ export default function MilestoneCard({
         })
         .catch(error => {
           console.error('Direct API call error:', error.response?.data)
-          toast.error(error.response?.data?.error || 'Failed to assign milestone')
+          const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to assign milestone'
+        toast.error(errorMessage)
         })
     }
   }

@@ -23,6 +23,22 @@ export default function WorkflowProgress({
   milestones = [],
   showMilestoneProgress = true 
 }: WorkflowProgressProps) {
+  // Handle case where request is undefined or null
+  if (!request || !request.id || !request.status) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Workflow Progress</h3>
+        <div className="text-center py-8">
+          <ClockIcon className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No Translation Request</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            No translation request has been created for this book yet.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const workflowProgress = getWorkflowProgress(request, applications, contracts, milestones)
   const milestoneProgress = showMilestoneProgress ? getMilestoneProgress(milestones) : null
 

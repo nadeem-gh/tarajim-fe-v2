@@ -168,6 +168,20 @@ api.interceptors.response.use(
       }
     }
 
+    // Ensure error response data is properly formatted
+    if (error.response?.data && typeof error.response.data === 'object') {
+      // If the error data is an object with type, message, details, ensure it's properly structured
+      if (error.response.data.type && error.response.data.message) {
+        error.response.data = {
+          error: {
+            type: error.response.data.type,
+            message: error.response.data.message,
+            details: error.response.data.details || error.response.data.message
+          }
+        }
+      }
+    }
+
     return Promise.reject(error)
   }
 )

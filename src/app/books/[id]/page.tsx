@@ -2,21 +2,33 @@
 
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { api } from '@/lib/api'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { BookOpenIcon, MicrophoneIcon, SpeakerWaveIcon, ClockIcon, DocumentTextIcon, UserPlusIcon } from '@heroicons/react/24/outline'
 import Link from 'next/link'
-import { useState } from 'react'
+import React, { useState } from 'react'
 import toast from 'react-hot-toast'
 import TranslationWorkflowPanel from '@/components/TranslationWorkflowPanel'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function BookDetail() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const bookId = Array.isArray(params.id) ? params.id[0] : params.id
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [showApplicationModal, setShowApplicationModal] = useState(false)
+
+  // Check for URL parameters to open modals
+  React.useEffect(() => {
+    const action = searchParams.get('action')
+    if (action === 'create-request') {
+      setShowRequestModal(true)
+    } else if (action === 'apply') {
+      setShowApplicationModal(true)
+    }
+  }, [searchParams])
 
   const { data: book, isLoading } = useQuery(
     ['book-detail', bookId],
@@ -53,6 +65,18 @@ export default function BookDetail() {
     }
   )
 
+  // Fetch workflow data to check translation status
+  const { data: workflowData } = useQuery(
+    ['book-workflow', bookId],
+    async () => {
+      const response = await api.get(`/books/${bookId}/translation-workflow/`)
+      return response.data
+    },
+    {
+      enabled: !!bookId && user?.role !== 'reader'
+    }
+  )
+
   // Create translation request mutation
   const createRequestMutation = useMutation(
     async (requestData: any) => {
@@ -63,6 +87,18 @@ export default function BookDetail() {
       onSuccess: () => {
         queryClient.invalidateQueries(['book-detail', bookId])
         setShowRequestModal(false)
+        // Clear URL parameter
+        const url = new URL(window.location.href)
+        url.searchParams.delete('action')
+        window.history.replaceState({}, '', url.toString())
+        toast.success('Translation request created successfully')
+      },
+      onError: (error: any) => {
+        console.error('Create request error:', error)
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to create translation request'
+        toast.error(errorMessage)
       }
     }
   )
@@ -78,6 +114,14 @@ export default function BookDetail() {
         queryClient.invalidateQueries(['book-detail', bookId])
         queryClient.invalidateQueries(['book-application-status', bookId])
         setShowApplicationModal(false)
+        toast.success('Application submitted successfully')
+      },
+      onError: (error: any) => {
+        console.error('Submit application error:', error)
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to submit application'
+        toast.error(errorMessage)
       }
     }
   )
@@ -126,10 +170,32 @@ export default function BookDetail() {
         toast.success(`${data.applications.length} applications accepted successfully!`)
       },
       onError: (error: any) => {
-        toast.error(error.response?.data?.error || 'Failed to accept applications')
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to accept applications'
+        toast.error(errorMessage)
       }
     }
   )
+
+  // Helper function to check if translation is completed
+  const isTranslationCompleted = () => {
+    if (!workflowData?.requests || workflowData.requests.length === 0) {
+      return false
+    }
+    
+    // Check if any request has status 'completed'
+    const hasCompletedRequest = workflowData.requests.some((request: any) => 
+      request.status === 'completed'
+    )
+    
+    // Also check if all milestones are completed
+    const allMilestonesCompleted = workflowData.milestones?.every((milestone: any) => 
+      milestone.status === 'completed' || milestone.status === 'approved' || milestone.status === 'paid'
+    ) || false
+    
+    return hasCompletedRequest && allMilestonesCompleted
+  }
 
   if (isLoading) {
     return (
@@ -200,7 +266,7 @@ export default function BookDetail() {
             <p className="text-gray-600 leading-relaxed">{book.description}</p>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Chapters</h2>
             <div className="space-y-3">
               {book.chapters?.map((chapter: any) => (
@@ -219,6 +285,17 @@ export default function BookDetail() {
               ))}
             </div>
           </div>
+
+          {/* Translation Workflow Panel */}
+          {user && user.role !== 'reader' && (
+            <ErrorBoundary>
+              <TranslationWorkflowPanel
+                bookId={bookId}
+                userRole={user.role}
+                onRefresh={() => queryClient.invalidateQueries(['book-workflow', bookId])}
+              />
+            </ErrorBoundary>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -257,8 +334,8 @@ export default function BookDetail() {
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions</h3>
             <div className="space-y-3">
-              {/* Read Book Button - Available for all users */}
-              {book.can_read_book && (
+              {/* Read Book Button - Only available when translation is completed */}
+              {book.can_read_book && isTranslationCompleted() && (
                 <a
                   href={book.epub_download_url}
                   target="_blank"
@@ -281,14 +358,35 @@ export default function BookDetail() {
                 </button>
               )}
               
-              {/* Generate Audio Button - Available for all users */}
-              <Link
-                href={`/books/${book.id}/audio`}
-                className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-              >
-                <SpeakerWaveIcon className="h-5 w-5 mr-2" />
-                Generate Audio
-              </Link>
+              {/* Generate Audio Button - Only available when translation is completed */}
+              {isTranslationCompleted() && (
+                <Link
+                  href={`/books/${book.id}/audio`}
+                  className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <SpeakerWaveIcon className="h-5 w-5 mr-2" />
+                  Generate Audio
+                </Link>
+              )}
+
+              {/* Translation Status Message */}
+              {!isTranslationCompleted() && (workflowData?.requests?.length > 0) && (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <ClockIcon className="h-5 w-5 text-yellow-400" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-yellow-800">
+                        Translation in Progress
+                      </h3>
+                      <div className="mt-2 text-sm text-yellow-700">
+                        <p>Read Book and Generate Audio features will be available once the translation is completed.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -386,15 +484,6 @@ export default function BookDetail() {
             </div>
           )}
 
-          {/* Translation Workflow Panel */}
-          {user && user.role !== 'reader' && (
-            <TranslationWorkflowPanel
-              bookId={bookId}
-              userRole={user.role}
-              onRefresh={() => queryClient.invalidateQueries(['book-workflow', bookId])}
-            />
-          )}
-
           {/* Sample Translations */}
           {book.sample_translations_count > 0 && (
             <div className="bg-white rounded-lg shadow p-6">
@@ -490,7 +579,13 @@ export default function BookDetail() {
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
                     type="button"
-                    onClick={() => setShowRequestModal(false)}
+                    onClick={() => {
+                      setShowRequestModal(false)
+                      // Clear URL parameter
+                      const url = new URL(window.location.href)
+                      url.searchParams.delete('action')
+                      window.history.replaceState({}, '', url.toString())
+                    }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
                   >
                     Cancel
@@ -521,7 +616,8 @@ export default function BookDetail() {
                 submitApplicationMutation.mutate({
                   cover_letter: formData.get('cover_letter'),
                   proposed_rate: parseFloat(formData.get('proposed_rate') as string),
-                  estimated_completion_time: parseInt(formData.get('estimated_completion_time') as string)
+                  estimated_completion_time: parseInt(formData.get('estimated_completion_time') as string),
+                  translator_id: user?.id
                 })
               }}>
                 <div className="space-y-4">

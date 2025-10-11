@@ -28,7 +28,8 @@ class WebSocketService {
   private reconnectInterval = 5000
 
   constructor() {
-    this.connect()
+    // Don't connect immediately - wait for explicit call
+    console.log('WebSocket service initialized')
   }
 
   private getWebSocketUrl(endpoint: string): string {
@@ -37,22 +38,32 @@ class WebSocketService {
     return `${protocol}//${host}${endpoint}`
   }
 
-  private connect(): void {
+  public connect(): void {
+    console.log('WebSocket service connecting...')
+    this.connectWorkflowSocket()
+    this.connectNotificationSocket()
+  }
+
+  private connectInternal(): void {
     this.connectWorkflowSocket()
     this.connectNotificationSocket()
   }
 
   private connectWorkflowSocket(): void {
     const bookId = this.getCurrentBookId()
-    if (!bookId) return
+    if (!bookId) {
+      console.log('No bookId found for workflow WebSocket')
+      return
+    }
 
     const url = this.getWebSocketUrl(`/ws/translation-workflow/${bookId}/`)
-    
+    console.log('Connecting to workflow WebSocket:', url)
+
     try {
       this.workflowSocket = new WebSocket(url)
-      
+
       this.workflowSocket.onopen = () => {
-        console.log('Workflow WebSocket connected')
+        console.log('✅ Workflow WebSocket connected to:', url)
         this.reconnectAttempts = 0
         this.callbacks.onConnect?.()
       }
@@ -60,24 +71,25 @@ class WebSocketService {
       this.workflowSocket.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data)
+          console.log('📨 Workflow message received:', message)
           this.handleWorkflowMessage(message)
         } catch (error) {
-          console.error('Error parsing workflow message:', error)
+          console.error('❌ Error parsing workflow message:', error)
         }
       }
 
-      this.workflowSocket.onclose = () => {
-        console.log('Workflow WebSocket disconnected')
+      this.workflowSocket.onclose = (event) => {
+        console.log('🔌 Workflow WebSocket disconnected:', event.code, event.reason)
         this.callbacks.onDisconnect?.()
         this.handleReconnect()
       }
 
       this.workflowSocket.onerror = (error) => {
-        console.error('Workflow WebSocket error:', error)
+        console.error('❌ Workflow WebSocket error:', error)
         this.callbacks.onError?.(error)
       }
     } catch (error) {
-      console.error('Failed to create workflow WebSocket:', error)
+      console.error('❌ Failed to create workflow WebSocket:', error)
     }
   }
 
@@ -147,7 +159,9 @@ class WebSocketService {
     // Extract book ID from current URL
     const path = window.location.pathname
     const bookMatch = path.match(/\/books\/(\d+)/)
-    return bookMatch ? bookMatch[1] : null
+    const bookId = bookMatch ? bookMatch[1] : null
+    console.log('Extracted book ID from URL:', bookId, 'from path:', path)
+    return bookId
   }
 
   private getCurrentUserId(): string | null {

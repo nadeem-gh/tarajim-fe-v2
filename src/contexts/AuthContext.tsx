@@ -137,7 +137,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(response.data.user)
       toast.success('Profile updated successfully')
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Profile update failed')
+      const errorMessage = error.response?.data?.error?.message || 
+                         error.response?.data?.message || 
+                         'Profile update failed'
+      toast.error(errorMessage)
       throw error
     }
   }

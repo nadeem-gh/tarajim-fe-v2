@@ -151,34 +151,67 @@ export const getWorkflowProgress = (
   completed: boolean
   nextAction?: string
 } => {
+  // Handle case where request is undefined or null
+  if (!request || !request.status || !request.id) {
+    return {
+      stage: 'No Request',
+      progress: 0,
+      completed: false,
+      nextAction: 'Create request'
+    }
+  }
+
   const stages = [
-    { key: 'draft', label: 'Draft', completed: request.status !== 'draft' },
-    { key: 'open', label: 'Open for Applications', completed: request.status !== 'draft' && request.status !== 'open' },
-    { key: 'reviewing', label: 'Reviewing Applications', completed: request.status !== 'draft' && request.status !== 'open' && request.status !== 'reviewing' },
-    { key: 'contracted', label: 'Contract Created', completed: request.status !== 'draft' && request.status !== 'open' && request.status !== 'reviewing' && request.status !== 'contracted' },
-    { key: 'in_progress', label: 'Work in Progress', completed: request.status !== 'draft' && request.status !== 'open' && request.status !== 'reviewing' && request.status !== 'contracted' && request.status !== 'in_progress' },
-    { key: 'completed', label: 'Completed', completed: request.status === 'completed' }
+    { key: 'draft', label: 'Draft', weight: 1 },
+    { key: 'open', label: 'Open for Applications', weight: 2 },
+    { key: 'reviewing', label: 'Reviewing Applications', weight: 3 },
+    { key: 'contracted', label: 'Contract Created', weight: 4 },
+    { key: 'in_progress', label: 'Work in Progress', weight: 5 },
+    { key: 'completed', label: 'Completed', weight: 6 }
   ]
   
+  const currentStage = stages.find(stage => stage.key === request.status)
   const currentStageIndex = stages.findIndex(stage => stage.key === request.status)
-  const completedStages = stages.filter(stage => stage.completed).length
+  
+  // Calculate progress based on current stage and actual workflow data
+  let progress = 0
+  if (currentStage) {
+    // Base progress from stage
+    progress = Math.round((currentStage.weight / stages.length) * 100)
+    
+    // Adjust based on actual data
+    if (request.status === 'open' && applications.length > 0) {
+      progress = Math.min(progress + 10, 100) // Bonus for having applications
+    }
+    if (request.status === 'reviewing' && applications.some(app => app.status === 'accepted')) {
+      progress = Math.min(progress + 15, 100) // Bonus for accepted applications
+    }
+    if (request.status === 'contracted' && contracts.length > 0) {
+      progress = Math.min(progress + 10, 100) // Bonus for having contracts
+    }
+    if (request.status === 'in_progress' && milestones.length > 0) {
+      progress = Math.min(progress + 10, 100) // Bonus for having milestones
+    }
+  }
   
   let nextAction = ''
   if (request.status === 'draft') {
     nextAction = 'Publish request'
   } else if (request.status === 'open') {
-    nextAction = 'Review applications'
+    nextAction = applications.length > 0 ? 'Review applications' : 'Wait for applications'
   } else if (request.status === 'reviewing') {
-    nextAction = 'Create contracts'
+    nextAction = 'Accept applications and create contracts'
   } else if (request.status === 'contracted') {
-    nextAction = 'Sign contracts'
+    nextAction = 'Sign contracts to start work'
   } else if (request.status === 'in_progress') {
     nextAction = 'Complete milestones'
+  } else if (request.status === 'completed') {
+    nextAction = 'Project completed'
   }
   
   return {
-    stage: stages[currentStageIndex]?.label || 'Unknown',
-    progress: Math.round((completedStages / stages.length) * 100),
+    stage: currentStage?.label || 'Unknown',
+    progress: Math.max(0, Math.min(100, progress)),
     completed: request.status === 'completed',
     nextAction: nextAction || undefined
   }

@@ -128,8 +128,14 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       }
     })
 
+    // Connect WebSocket with a delay to ensure bookId is available
+    const connectTimer = setTimeout(() => {
+      websocketService.connect()
+    }, 500)
+
     // Cleanup on unmount
     return () => {
+      clearTimeout(connectTimer)
       websocketService.setCallbacks({})
     }
   }, [handleWorkflowUpdate, handleNotification, options.enableWorkflowUpdates, options.enableNotifications])

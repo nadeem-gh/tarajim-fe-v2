@@ -37,6 +37,12 @@ interface Application {
   created_at: string
   reviewed_at?: string
   review_notes?: string
+  available_transitions: Array<{
+    name: string
+    target: string
+    description: string
+    permission: string
+  }>
 }
 
 interface ApplicationCardProps {
@@ -75,7 +81,10 @@ export default function ApplicationCard({
         onAccept?.(application.id)
       },
       onError: (error: any) => {
-        toast.error(error.response?.data?.error || 'Failed to accept application')
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to accept application'
+        toast.error(errorMessage)
       }
     }
   )
@@ -94,7 +103,10 @@ export default function ApplicationCard({
         onReject?.(application.id)
       },
       onError: (error: any) => {
-        toast.error(error.response?.data?.error || 'Failed to reject application')
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to reject application'
+        toast.error(errorMessage)
       }
     }
   )
@@ -231,7 +243,7 @@ export default function ApplicationCard({
       </div>
 
       {/* Action buttons */}
-      {application.status === 'pending' && (
+      {(canAccept || canReject) && (
         <div className="flex space-x-2">
           {canAccept && (
             <button

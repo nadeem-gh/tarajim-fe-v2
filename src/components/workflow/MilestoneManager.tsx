@@ -12,6 +12,7 @@ interface Milestone {
   title: string
   description: string
   status: 'pending' | 'in_progress' | 'completed' | 'approved' | 'paid'
+  milestone_number: number
   completion_percentage: number
   amount: number
   currency: string
@@ -31,6 +32,12 @@ interface Milestone {
   }
   created_at: string
   updated_at: string
+  available_transitions: Array<{
+    name: string
+    target: string
+    description: string
+    permission: string
+  }>
 }
 
 interface MilestoneManagerProps {

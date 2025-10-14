@@ -136,13 +136,7 @@ export default function ApplicationCard({
       review_notes: 'Application accepted',
       contract_terms: 'Standard translation contract terms',
       deliverables: 'Complete translation of the book',
-      quality_requirements: 'High-quality translation meeting professional standards',
-      milestones: [
-        { title: '25% Complete', amount: 125, currency: 'USD' },
-        { title: '50% Complete', amount: 125, currency: 'USD' },
-        { title: '75% Complete', amount: 125, currency: 'USD' },
-        { title: '100% Complete', amount: 125, currency: 'USD' }
-      ]
+      quality_requirements: 'High-quality translation meeting professional standards'
     }
     acceptApplicationMutation.mutate(defaultData)
   }
@@ -155,8 +149,8 @@ export default function ApplicationCard({
     }
   }
 
-  const canAccept = workflowState.canAccept && userRole === 'requester'
-  const canReject = workflowState.canReject && userRole === 'requester'
+  const canAccept = workflowState.canAccept
+  const canReject = workflowState.canReject
   const canView = userRole === 'requester' || (userRole === 'translator' && application.translator.id === application.translator.id)
 
   if (!canView) {

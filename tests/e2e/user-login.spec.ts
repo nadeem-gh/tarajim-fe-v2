@@ -20,7 +20,7 @@ test.describe('User Login Workflow', () => {
     await page.waitForTimeout(500);
     
     // Verify successful login
-    await expect(page.locator('text=Welcome, Reader')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('text=Welcome back, Reader!')).toBeVisible({ timeout: 3000 });
   });
 
   test('should login as requester user', async ({ page }) => {
@@ -38,7 +38,7 @@ test.describe('User Login Workflow', () => {
     await page.waitForTimeout(500);
     
     // Verify successful login
-    await expect(page.locator('text=Welcome, Requester')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('text=Welcome back, Requester!')).toBeVisible({ timeout: 3000 });
   });
 
   test('should login as translator user', async ({ page }) => {
@@ -56,7 +56,7 @@ test.describe('User Login Workflow', () => {
     await page.waitForTimeout(500);
     
     // Verify successful login
-    await expect(page.locator('text=Welcome, Translator')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('text=Welcome back, Translator!')).toBeVisible({ timeout: 3000 });
   });
 
   test('should show error for invalid credentials', async ({ page }) => {

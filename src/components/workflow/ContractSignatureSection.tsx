@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import toast from 'react-hot-toast'
 import { CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { extractErrorMessage } from '@/utils/errorHandling'
+import { getContractWorkflowState } from '@/utils/workflowHelpers'
 
 interface Contract {
   id: number
@@ -17,6 +18,12 @@ interface Contract {
   contract_terms: string
   deliverables: string
   quality_requirements: string
+  available_transitions: Array<{
+    name: string
+    target: string
+    description: string
+    permission: string
+  }>
 }
 
 interface ContractSignatureSectionProps {
@@ -61,11 +68,23 @@ export default function ContractSignatureSection({
     }
   )
 
+  // Get workflow state for this contract
+  const workflowState = getContractWorkflowState(contract, userRole)
+  
   const canSign = () => {
     if (userRole === 'requester') {
-      return !contract.requester_signed && contract.status !== 'signed'
+      return workflowState.canSignRequester
     } else if (userRole === 'translator') {
-      return !contract.translator_signed && contract.status !== 'signed'
+      return workflowState.canSignTranslator
+    }
+    return false
+  }
+
+  const hasUserSigned = () => {
+    if (userRole === 'requester') {
+      return contract.requester_signed
+    } else if (userRole === 'translator') {
+      return contract.translator_signed
     }
     return false
   }
@@ -111,7 +130,19 @@ export default function ContractSignatureSection({
   }
 
   const signatureStatus = getSignatureStatus()
-  const canUserSign = canSign()
+  const canUserSign = canSign() && !hasUserSigned()
+  
+  // Debug logging
+  console.log('ContractSignatureSection Debug:', {
+    contract: contract,
+    userRole: userRole,
+    workflowState: workflowState,
+    canSignResult: canUserSign,
+    hasUserSigned: hasUserSigned(),
+    availableTransitions: contract.available_transitions,
+    canSignRequester: workflowState.canSignRequester,
+    canSignTranslator: workflowState.canSignTranslator
+  })
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -188,8 +219,8 @@ export default function ContractSignatureSection({
         </div>
       </div>
 
-      {/* Sign button */}
-      {canUserSign && (
+      {/* Sign button or signed status */}
+      {canUserSign ? (
         <div className="border-t border-gray-200 pt-4">
           <button
             onClick={() => setShowConfirmation(true)}
@@ -198,7 +229,14 @@ export default function ContractSignatureSection({
             Sign Contract
           </button>
         </div>
-      )}
+      ) : hasUserSigned() ? (
+        <div className="border-t border-gray-200 pt-4">
+          <div className="flex items-center justify-center px-4 py-2 text-sm font-medium text-green-600 bg-green-50 border border-green-200 rounded-md">
+            <CheckCircleIcon className="h-4 w-4 mr-2" />
+            You have signed this contract
+          </div>
+        </div>
+      ) : null}
 
       {/* Confirmation modal */}
       {showConfirmation && (

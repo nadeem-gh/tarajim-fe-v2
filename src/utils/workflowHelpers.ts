@@ -88,8 +88,8 @@ export const getContractWorkflowState = (
 ): Record<string, boolean> => {
   return {
     canSendToRequester: canPerformAction(contract, 'send_to_requester'),
-    canSignRequester: canPerformAction(contract, 'sign_by_requester') && userRole === 'requester',
-    canSignTranslator: canPerformAction(contract, 'sign_by_translator') && userRole === 'translator',
+    canSignRequester: canPerformAction(contract, 'sign_by_requester'),
+    canSignTranslator: canPerformAction(contract, 'sign_by_translator'),
     canActivate: canPerformAction(contract, 'activate'),
     canComplete: canPerformAction(contract, 'complete')
   }
@@ -104,14 +104,15 @@ export const getMilestoneWorkflowState = (
   allMilestones: TranslationMilestone[] = []
 ): Record<string, boolean> => {
   const canStart = canPerformAction(milestone, 'start') && 
-    isPreviousMilestoneCompleted(milestone, allMilestones)
+    isPreviousMilestoneCompleted(milestone, allMilestones) &&
+    userRole === 'translator' // Only translators can start work
   
   return {
-    canAssign: canPerformAction(milestone, 'assign') && userRole === 'requester',
-    canStart: canStart && userRole === 'translator',
-    canSubmit: canPerformAction(milestone, 'submit') && userRole === 'translator',
-    canApprove: canPerformAction(milestone, 'approve') && userRole === 'requester',
-    canPay: canPerformAction(milestone, 'mark_paid') && userRole === 'requester'
+    canAssign: canPerformAction(milestone, 'assign') && userRole === 'requester', // Only requesters can assign
+    canStart: canStart,
+    canSubmit: canPerformAction(milestone, 'submit') && userRole === 'translator', // Only translators can submit
+    canApprove: canPerformAction(milestone, 'approve') && userRole === 'requester', // Only requesters can approve
+    canMarkPaid: canPerformAction(milestone, 'mark_paid') && userRole === 'requester' // Only requesters can mark as paid
   }
 }
 

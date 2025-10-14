@@ -276,10 +276,10 @@ export default function BookDetail() {
                     <p className="text-sm text-gray-500">{chapter.word_count} words</p>
                   </div>
                   <Link
-                    href={`/books/${book.id}/chapters/${chapter.id}`}
+                    href={`/workspace/${chapter.milestone_id}?book=${book.id}`}
                     className="text-primary-600 hover:text-primary-500 text-sm font-medium"
                   >
-                    View →
+                    Start Translation →
                   </Link>
                 </div>
               ))}

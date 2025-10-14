@@ -13,10 +13,12 @@ import {
 } from '@heroicons/react/24/outline'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { useRouter } from 'next/navigation'
+import ApplicationCard from './ApplicationCard'
+import ContractCard from './ContractCard'
 
 interface SimplifiedWorkflowProps {
   bookId: string
-  userRole: 'requester' | 'translator'
+  userRole: 'requester' | 'translator' | 'reader'
   onRefresh: () => void
 }
 
@@ -56,6 +58,40 @@ interface Contract {
   created_at: string
 }
 
+interface Milestone {
+  id: number
+  title: string
+  description: string
+  status: 'pending' | 'in_progress' | 'completed' | 'approved' | 'paid'
+  milestone_number: number
+  completion_percentage: number
+  amount: number
+  currency: string
+  contract: number
+  translator?: {
+    id: number
+    first_name: string
+    last_name: string
+    email: string
+    role: string
+  }
+  approved_by?: {
+    id: number
+    first_name: string
+    last_name: string
+    email: string
+    role: string
+  }
+  created_at: string
+  updated_at: string
+  available_transitions: Array<{
+    name: string
+    target: string
+    description: string
+    permission: string
+  }>
+}
+
 interface WorkflowData {
   book_id: string
   book_title: string
@@ -64,6 +100,7 @@ interface WorkflowData {
   requests: TranslationRequest[]
   applications: Application[]
   contracts: Contract[]
+  milestones: Milestone[]
 }
 
 export default function SimplifiedWorkflow({
@@ -98,6 +135,12 @@ export default function SimplifiedWorkflow({
       }
     }
   )
+
+  // Extract data from workflowData
+  const requests = workflowData?.requests || []
+  const applications = workflowData?.applications || []
+  const contracts = workflowData?.contracts || []
+  const milestones = workflowData?.milestones || []
 
   const handleRefresh = () => {
     queryClient.invalidateQueries(['book-workflow', bookId])
@@ -142,9 +185,6 @@ export default function SimplifiedWorkflow({
   }
 
   const { 
-    requests = [], 
-    applications = [], 
-    contracts = [],
     can_create_request = false 
   } = workflowData
 
@@ -328,33 +368,15 @@ export default function SimplifiedWorkflow({
               {applications.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium text-gray-900 mb-3">Applications</h4>
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     {applications.map((application) => (
-                      <div key={application.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-blue-600">
-                              {application.translator.first_name[0]}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              {application.translator.first_name} {application.translator.last_name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Applied {new Date(application.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          application.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                          application.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                          application.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {application.status}
-                        </span>
-                      </div>
+                      <ApplicationCard
+                        key={application.id}
+                        application={application}
+                        bookId={bookId}
+                        userRole={userRole}
+                        onRefresh={onRefresh}
+                      />
                     ))}
                   </div>
                 </div>
@@ -364,31 +386,16 @@ export default function SimplifiedWorkflow({
               {contracts.length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium text-gray-900 mb-3">Contracts</h4>
-                  <div className="space-y-2">
+                  <div className="space-y-4">
                     {contracts.map((contract) => (
-                      <div key={contract.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                            <DocumentCheckIcon className="h-4 w-4 text-purple-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              Contract with {contract.translator.first_name} {contract.translator.last_name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Created {new Date(contract.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          contract.status === 'signed' ? 'bg-green-100 text-green-800' :
-                          contract.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                          contract.status === 'completed' ? 'bg-purple-100 text-purple-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {contract.status}
-                        </span>
-                      </div>
+                      <ContractCard
+                        key={contract.id}
+                        contract={contract}
+                        milestones={milestones.filter(m => m.contract === contract.id)}
+                        bookId={bookId}
+                        userRole={userRole}
+                        onRefresh={onRefresh}
+                      />
                     ))}
                   </div>
                 </div>

@@ -1,217 +1,372 @@
-# End-to-End Testing Documentation
+# Translation Workflow E2E Tests
 
-This directory contains comprehensive end-to-end tests for the Tarajim Translation Platform using Playwright.
+## Overview
+This directory contains comprehensive end-to-end tests for the Translation Platform workflow system, covering all API integrations, state management, permissions, and real-time features.
 
 ## Test Structure
 
 ### Test Files
-- `user-registration.spec.ts` - User registration workflows for all user types
-- `user-login.spec.ts` - User authentication and login workflows
-- `book-browsing.spec.ts` - Book catalog browsing, filtering, and search
-- `translation-request.spec.ts` - Translation request creation and management
-- `translation-application.spec.ts` - Translation application submission and management
-- `payment-workflow.spec.ts` - Payment processing and escrow workflows
-- `audio-features.spec.ts` - Audio generation and playback features
-- `admin-workflows.spec.ts` - Administrative functions and user management
+- `translation-workflow-comprehensive.spec.ts` - Complete workflow tests (single and multiple translators)
+- `api-integration.spec.ts` - API endpoint integration tests
+- `workflow-state-management.spec.ts` - State machine and transition tests
+- `websocket-integration.spec.ts` - Real-time WebSocket functionality tests
+- `permission-based-access.spec.ts` - Role-based access control tests
+- `test-config.ts` - Test configuration and utilities
+- `run-tests.ts` - Comprehensive test runner
 
-### Setup Files
-- `global-setup.ts` - Initial test data setup
-- `global-teardown.ts` - Test data cleanup
+### Test Categories
+
+#### 1. Workflow Tests
+- **Single Translator Workflow**: Complete end-to-end workflow with one translator
+- **Multiple Translators Parallel Workflow**: Parallel workflow with multiple translators
+- **Sequential Milestone Enforcement**: Milestone completion order validation
+- **State Transition Validation**: All state machine transitions
+
+#### 2. API Integration Tests
+- **Request Creation API**: POST `/books/{book_id}/create-request/`
+- **Application Submission API**: POST `/books/{book_id}/submit-application/`
+- **Contract Signing API**: POST `/books/{book_id}/contracts/{contract_id}/sign/`
+- **Milestone Management API**: All milestone CRUD operations
+- **Error Handling**: API error responses and validation
+
+#### 3. State Management Tests
+- **Request States**: draft → open → reviewing → contracted → in_progress → completed
+- **Application States**: pending → accepted/rejected/withdrawn
+- **Contract States**: draft → pending_requester → signed → in_progress → completed
+- **Milestone States**: pending → assigned → in_progress → submitted → approved → paid
+
+#### 4. WebSocket Tests
+- **Connection Management**: WebSocket connection and disconnection
+- **Real-time Updates**: Workflow state change notifications
+- **Message Types**: workflow_update and notification message handling
+- **Error Handling**: WebSocket error scenarios
+- **Performance**: Message frequency and connection stability
+
+#### 5. Permission Tests
+- **Reader Role**: Can view books, cannot perform workflow actions
+- **Requester Role**: Can create requests, accept applications, manage milestones
+- **Translator Role**: Can apply to requests, work on milestones, cannot create requests
+- **Cross-user Access**: Users cannot access other users' resources
+
+## Test Configuration
+
+### Prerequisites
+1. **Backend Server**: Django server running on `http://localhost:8000`
+2. **Frontend Server**: Next.js server running on `http://localhost:3001`
+3. **Test Data**: Properly seeded test users and books
+4. **WebSocket Support**: Redis or in-memory channel layer configured
+
+### Test Users
+```typescript
+const testUsers = {
+  reader: {
+    email: 'reader@example.com',
+    password: 'password123',
+    role: 'reader'
+  },
+  requester: {
+    email: 'requester@example.com',
+    password: 'password123',
+    role: 'requester'
+  },
+  translator: {
+    email: 'translator@example.com',
+    password: 'password123',
+    role: 'translator'
+  },
+  translator2: {
+    email: 'translator2@example.com',
+    password: 'password123',
+    role: 'translator'
+  }
+};
+```
+
+### Test Data
+```typescript
+const testData = {
+  translationRequest: {
+    title: 'Test Translation Request',
+    description: 'Test translation request description',
+    sourceLanguage: 'English',
+    targetLanguage: 'Arabic',
+    wordCount: 50000,
+    estimatedHours: 200,
+    budget: 1000,
+    deadline: '2024-12-31T23:59:59Z'
+  },
+  application: {
+    coverLetter: 'Test application cover letter',
+    proposedRate: 25.00,
+    estimatedCompletionTime: 30,
+    relevantExperience: '5 years translation experience'
+  },
+  milestone: {
+    title: 'Test Milestone',
+    description: 'Test milestone description',
+    amount: 500.00,
+    dueDate: '2024-02-01T00:00:00Z'
+  }
+};
+```
 
 ## Running Tests
 
-### Prerequisites
-1. Backend server running on `http://localhost:8000`
-2. Frontend server running on `http://localhost:3001`
-3. Test data properly seeded
+### Prerequisites Setup
+```bash
+# Start backend server
+cd /Users/nadeem/Documents/pythonapps/tarajim/tarajim-v2
+source venv-3.12/bin/activate
+python manage.py runserver
 
-### Commands
+# Start frontend server
+cd /Users/nadeem/Documents/pythonapps/tarajim/tarajim-fe-v2
+npm run dev
+```
 
+### Test Commands
+
+#### Run All Tests
 ```bash
 # Run all E2E tests
 npm run test:e2e
 
-# Run tests with UI mode (interactive)
+# Run with UI mode (interactive)
 npm run test:e2e:ui
 
-# Run tests in headed mode (visible browser)
+# Run in headed mode (visible browser)
 npm run test:e2e:headed
 
 # Debug tests step by step
 npm run test:e2e:debug
-
-# View test report
-npm run test:e2e:report
 ```
 
-### Running Specific Test Suites
-
+#### Run Specific Test Suites
 ```bash
-# Run only user registration tests
-npx playwright test user-registration
+# Run workflow tests only
+npx playwright test translation-workflow-comprehensive
 
-# Run only payment workflow tests
-npx playwright test payment-workflow
+# Run API integration tests
+npx playwright test api-integration
+
+# Run state management tests
+npx playwright test workflow-state-management
+
+# Run WebSocket tests
+npx playwright test websocket-integration
+
+# Run permission tests
+npx playwright test permission-based-access
+```
+
+#### Run Individual Tests
+```bash
+# Run specific test
+npx playwright test translation-workflow-comprehensive --grep "Complete Single Translator Workflow"
 
 # Run tests for specific browser
 npx playwright test --project=chromium
+
+# Run tests in parallel
+npx playwright test --workers=4
 ```
 
 ## Test Coverage
 
-### User Workflows
-- ✅ User registration (Reader, Requester, Translator)
-- ✅ User login and authentication
-- ✅ User profile management
-- ✅ Role-based access control
+### API Endpoints Covered
+- ✅ `POST /books/{book_id}/create-request/` - Request creation
+- ✅ `POST /books/{book_id}/submit-application/` - Application submission
+- ✅ `POST /books/{book_id}/applications/{application_id}/accept/` - Accept application
+- ✅ `POST /books/{book_id}/applications/{application_id}/reject/` - Reject application
+- ✅ `POST /books/{book_id}/applications/accept-multiple/` - Accept multiple applications
+- ✅ `POST /books/{book_id}/contracts/{contract_id}/sign/` - Sign contract
+- ✅ `POST /books/{book_id}/contracts/{contract_id}/milestones/` - Create milestone
+- ✅ `POST /books/{book_id}/milestones/{milestone_id}/assign/` - Assign milestone
+- ✅ `POST /books/{book_id}/milestones/{milestone_id}/start/` - Start milestone
+- ✅ `POST /books/{book_id}/milestones/{milestone_id}/submit/` - Submit milestone
+- ✅ `POST /books/{book_id}/milestones/{milestone_id}/approve/` - Approve milestone
+- ✅ `POST /books/{book_id}/milestones/{milestone_id}/mark_paid/` - Mark milestone paid
+- ✅ `GET /books/{book_id}/translation-workflow/` - Get workflow data
 
-### Book Management
-- ✅ Book catalog browsing
-- ✅ Book filtering by language, genre, author
-- ✅ Book search functionality
-- ✅ Book detail viewing
-- ✅ Book statistics display
+### Workflow Scenarios Covered
+- ✅ **Single Translator Workflow**: Complete end-to-end workflow
+- ✅ **Multiple Translators Parallel Workflow**: Parallel processing
+- ✅ **Sequential Milestone Enforcement**: Order validation
+- ✅ **State Transition Validation**: All state changes
+- ✅ **Permission-Based Access Control**: Role-based restrictions
+- ✅ **Error Handling**: Invalid operations and validation
+- ✅ **WebSocket Integration**: Real-time updates
+- ✅ **API Error Responses**: Error handling and recovery
 
-### Translation Workflows
-- ✅ Translation request creation (Requesters)
-- ✅ Translation application submission (Translators)
-- ✅ Application approval/rejection
-- ✅ Contract generation and signing
-- ✅ Milestone management
-- ✅ Progress tracking
+### User Roles Tested
+- ✅ **Reader**: View-only access, no workflow actions
+- ✅ **Requester**: Full request management, milestone creation, approval
+- ✅ **Translator**: Application submission, milestone work, contract signing
+- ✅ **Cross-user Access**: Resource isolation and security
 
-### Payment & Escrow
-- ✅ Escrow account creation
-- ✅ Payment processing
-- ✅ Milestone payment release
-- ✅ Refund processing
-- ✅ Sales analytics
+## Test Utilities
 
-### Audio Features
-- ✅ Audio generation for books
-- ✅ Audio playback controls
-- ✅ Audio download
-- ✅ Audio sharing
+### Configuration
+```typescript
+import { testConfig, testUtils, testAssertions } from './test-config';
 
-### Admin Functions
-- ✅ User management
-- ✅ Content moderation
-- ✅ Payment oversight
-- ✅ System analytics
-- ✅ Settings management
+// Login as specific user
+await testUtils.login(page, 'requester');
 
-## Test Data Requirements
+// Navigate to book
+await testUtils.navigateToBook(page);
 
-The tests require the following test data to be available:
+// Create translation request
+await testUtils.createTranslationRequest(page);
 
-### Users
-- Admin user: `admin@example.com` / `admin123`
-- Reader user: `reader@example.com` / `password123`
-- Requester user: `requester@example.com` / `password123`
-- Translator user: `translator@example.com` / `password123`
+// Submit application
+await testUtils.submitApplication(page);
 
-### Books
-- Sample books with different languages and genres
-- EPUB files for testing
-- Book metadata and statistics
+// Verify status
+await testUtils.verifyStatus(page, 'Open for Applications');
+```
 
-### Translation Data
-- Sample translation requests
-- Translation applications
-- Contracts and milestones
+### Assertions
+```typescript
+// Check user permissions
+await testAssertions.assertUserCanCreateRequest(page);
+await testAssertions.assertUserCannotSubmitApplication(page);
 
-## Configuration
+// Verify UI elements
+await testUtils.verifyElementVisible(page, '[data-testid="workflow-panel"]');
+await testUtils.verifyElementNotVisible(page, '[data-testid="request-actions"]');
+```
 
-### Playwright Configuration
-- **Base URL**: `http://localhost:3001`
-- **Browsers**: Chromium, Firefox, WebKit
-- **Mobile Testing**: Chrome Mobile, Safari Mobile
-- **Parallel Execution**: Enabled
-- **Retries**: 2 on CI, 0 locally
-- **Trace Collection**: On first retry
+### Test Data Generation
+```typescript
+import { testDataGenerators } from './test-config';
 
-### Test Environment
-- **Frontend**: Next.js 14.0.4 on port 3001
-- **Backend**: Django 5.0.8 on port 8000
-- **Database**: SQLite (test database)
-- **File Storage**: Local file system
+// Generate test data
+const requestData = testDataGenerators.generateTranslationRequest({
+  title: 'Custom Test Request',
+  budget: 2000
+});
+
+const applicationData = testDataGenerators.generateApplication({
+  coverLetter: 'Custom application letter'
+});
+```
 
 ## Best Practices
 
 ### Test Organization
-- Each test file focuses on a specific workflow
+- Each test file focuses on a specific aspect (workflow, API, state, etc.)
 - Tests are independent and can run in any order
-- Setup and teardown are handled globally
+- Setup and teardown are handled automatically
+- Tests use realistic data and scenarios
 
-### Test Data
-- Use realistic test data
+### Test Data Management
+- Use consistent test data across all tests
 - Clean up after each test run
 - Avoid hardcoded values where possible
+- Use data generators for dynamic content
 
 ### Assertions
 - Use specific, meaningful assertions
 - Test both positive and negative scenarios
-- Verify UI state changes
+- Verify state changes and transitions
+- Check error handling and validation
 
 ### Performance
-- Tests run in parallel by default
-- Use appropriate timeouts for async operations
-- Avoid unnecessary waits
+- Tests run efficiently with minimal setup
+- Use parallel execution where possible
+- Optimize test data and operations
+- Monitor test execution time
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Port conflicts**: Ensure ports 3001 and 8000 are available
-2. **Test data**: Verify test data is properly seeded
-3. **Authentication**: Check user credentials in test files
-4. **Timeouts**: Increase timeout for slow operations
+#### WebSocket Connection Failures
+```bash
+# Check if Redis is running
+redis-cli ping
+
+# Check Django Channels configuration
+python manage.py shell
+>>> from channels.layers import get_channel_layer
+>>> channel_layer = get_channel_layer()
+```
+
+#### API Endpoint Errors
+```bash
+# Check backend server logs
+tail -f /Users/nadeem/Documents/pythonapps/tarajim/tarajim-v2/logs/django.log
+
+# Test API endpoints manually
+curl -X POST http://localhost:8000/api/books/1/create-request/ \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Test Request"}'
+```
+
+#### Test Data Issues
+```bash
+# Reset test database
+python manage.py flush --noinput
+
+# Create test users
+python manage.py shell
+>>> from django.contrib.auth import get_user_model
+>>> User = get_user_model()
+>>> User.objects.create_user('requester@example.com', 'password123', role='requester')
+```
 
 ### Debug Mode
 ```bash
+# Run tests in debug mode
+npx playwright test --debug
+
 # Run specific test in debug mode
-npx playwright test user-registration --debug
+npx playwright test translation-workflow-comprehensive --debug
 
-# Run with browser visible
-npx playwright test user-registration --headed
+# Run with verbose output
+npx playwright test --reporter=verbose
 ```
 
-### Test Reports
-- HTML reports are generated in `playwright-report/`
-- Screenshots and videos are captured on failure
-- Traces are available for debugging
+## Test Reports
 
-## Continuous Integration
+### Generate Reports
+```bash
+# Generate HTML report
+npx playwright test --reporter=html
 
-### GitHub Actions
-```yaml
-name: E2E Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm install
-      - run: npm run test:e2e
+# Generate JSON report
+npx playwright test --reporter=json
+
+# Generate JUnit report
+npx playwright test --reporter=junit
 ```
 
-### Test Results
-- Test results are published as artifacts
-- Screenshots and videos are uploaded on failure
-- Coverage reports are generated
+### View Reports
+```bash
+# Open HTML report
+npx playwright show-report
+
+# View test results
+npx playwright test --reporter=list
+```
 
 ## Maintenance
 
-### Regular Updates
-- Update Playwright version regularly
-- Review and update test selectors
-- Add new tests for new features
-- Remove obsolete tests
+### Adding New Tests
+1. Follow existing test patterns
+2. Use test utilities and configuration
+3. Include proper setup and teardown
+4. Test both positive and negative scenarios
 
-### Test Data Management
-- Keep test data minimal and focused
-- Use factories for test data generation
-- Clean up test data after runs
-- Version control test data changes
+### Updating Tests
+1. Maintain backward compatibility
+2. Update test data as needed
+3. Ensure test isolation
+4. Validate test coverage
+
+### Test Debugging
+1. Use debug mode for step-by-step execution
+2. Check browser console for errors
+3. Verify API responses
+4. Test WebSocket connections manually

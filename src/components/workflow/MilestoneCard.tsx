@@ -19,6 +19,7 @@ interface Milestone {
   title: string
   description: string
   status: 'pending' | 'in_progress' | 'completed' | 'approved' | 'paid'
+  milestone_number: number
   completion_percentage: number
   amount: number
   currency: string
@@ -38,6 +39,12 @@ interface Milestone {
   }
   created_at: string
   updated_at: string
+  available_transitions: Array<{
+    name: string
+    target: string
+    description: string
+    permission: string
+  }>
 }
 
 interface MilestoneCardProps {
@@ -152,24 +159,93 @@ export default function MilestoneCard({
     }
   )
 
-  // Status transition mutation
-  const transitionStatusMutation = useMutation(
-    async (newStatus: string) => {
-      const response = await api.patch(`/books/${bookId}/milestones/${milestone.id}/`, {
-        status: newStatus
-      })
+  // Start milestone mutation
+  const startMilestoneMutation = useMutation(
+    async () => {
+      const response = await api.post(`/books/${bookId}/milestones/${milestone.id}/start/`)
       return response.data
     },
     {
-      onSuccess: (data, variables) => {
+      onSuccess: () => {
         queryClient.invalidateQueries(['book-workflow', bookId])
-        toast.success(`Milestone status updated to ${variables}`)
+        toast.success('Milestone started successfully')
+        onUpdate()
+        // Navigate to translation workspace for translators
+        if (userRole === 'translator') {
+          window.location.href = `/workspace/${milestone.id}?book=${bookId}`
+        }
+      },
+      onError: (error: any) => {
+        console.error('Start milestone error:', error.response?.data)
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to start milestone'
+        toast.error(errorMessage)
+      }
+    }
+  )
+
+  // Submit milestone mutation
+  const submitMilestoneMutation = useMutation(
+    async () => {
+      const response = await api.post(`/books/${bookId}/milestones/${milestone.id}/submit/`)
+      return response.data
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['book-workflow', bookId])
+        toast.success('Milestone submitted for review')
         onUpdate()
       },
       onError: (error: any) => {
+        console.error('Submit milestone error:', error.response?.data)
         const errorMessage = error.response?.data?.error?.message || 
                            error.response?.data?.message || 
-                           'Failed to update milestone status'
+                           'Failed to submit milestone'
+        toast.error(errorMessage)
+      }
+    }
+  )
+
+  // Approve milestone mutation
+  const approveMilestoneMutation = useMutation(
+    async () => {
+      const response = await api.post(`/books/${bookId}/milestones/${milestone.id}/approve/`)
+      return response.data
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['book-workflow', bookId])
+        toast.success('Milestone approved')
+        onUpdate()
+      },
+      onError: (error: any) => {
+        console.error('Approve milestone error:', error.response?.data)
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to approve milestone'
+        toast.error(errorMessage)
+      }
+    }
+  )
+
+  // Mark milestone as paid mutation
+  const markPaidMutation = useMutation(
+    async () => {
+      const response = await api.post(`/books/${bookId}/milestones/${milestone.id}/mark_paid/`)
+      return response.data
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['book-workflow', bookId])
+        toast.success('Milestone marked as paid')
+        onUpdate()
+      },
+      onError: (error: any) => {
+        console.error('Mark paid error:', error.response?.data)
+        const errorMessage = error.response?.data?.error?.message || 
+                           error.response?.data?.message || 
+                           'Failed to mark milestone as paid'
         toast.error(errorMessage)
       }
     }
@@ -197,12 +273,16 @@ export default function MilestoneCard({
     }
   }
 
+  // Get workflow state for this milestone
+  const workflowState = getMilestoneWorkflowState(milestone, userRole)
+  
   const canEdit = userRole === 'requester' && milestone.status === 'pending'
   const canDelete = userRole === 'requester' && milestone.status === 'pending'
-  const canAssign = userRole === 'requester' && !milestone.translator
-  const canStart = userRole === 'translator' && milestone.status === 'pending' && milestone.translator
-  const canComplete = userRole === 'translator' && milestone.status === 'in_progress'
-  const canApprove = userRole === 'requester' && milestone.status === 'completed'
+  const canAssign = workflowState.canAssign
+  const canStart = workflowState.canStart
+  const canSubmit = workflowState.canSubmit
+  const canApprove = workflowState.canApprove
+  const canMarkPaid = workflowState.canMarkPaid
 
   const handleSave = () => {
     updateMilestoneMutation.mutate(editData)
@@ -394,29 +474,38 @@ export default function MilestoneCard({
             )}
             {canStart && (
               <button
-                onClick={() => transitionStatusMutation.mutate('in_progress')}
-                disabled={transitionStatusMutation.isLoading}
+                onClick={() => startMilestoneMutation.mutate()}
+                disabled={startMilestoneMutation.isLoading}
                 className="px-3 py-1 text-xs font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded disabled:opacity-50"
               >
                 Start Work
               </button>
             )}
-            {canComplete && (
+            {canSubmit && (
               <button
-                onClick={() => transitionStatusMutation.mutate('completed')}
-                disabled={transitionStatusMutation.isLoading}
+                onClick={() => submitMilestoneMutation.mutate()}
+                disabled={submitMilestoneMutation.isLoading}
                 className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50"
               >
-                Mark Complete
+                Submit for Review
               </button>
             )}
             {canApprove && (
               <button
-                onClick={() => transitionStatusMutation.mutate('approved')}
-                disabled={transitionStatusMutation.isLoading}
+                onClick={() => approveMilestoneMutation.mutate()}
+                disabled={approveMilestoneMutation.isLoading}
                 className="px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded disabled:opacity-50"
               >
                 Approve
+              </button>
+            )}
+            {canMarkPaid && (
+              <button
+                onClick={() => markPaidMutation.mutate()}
+                disabled={markPaidMutation.isLoading}
+                className="px-3 py-1 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded disabled:opacity-50"
+              >
+                Mark as Paid
               </button>
             )}
           </div>

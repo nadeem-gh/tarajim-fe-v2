@@ -61,6 +61,12 @@ interface Application {
   created_at: string
   reviewed_at?: string
   review_notes?: string
+  available_transitions: Array<{
+    name: string
+    target: string
+    description: string
+    permission: string
+  }>
 }
 
 interface Contract {
@@ -89,6 +95,12 @@ interface Contract {
   }
   created_at: string
   updated_at: string
+  available_transitions: Array<{
+    name: string
+    target: string
+    description: string
+    permission: string
+  }>
 }
 
 interface Milestone {
@@ -96,6 +108,7 @@ interface Milestone {
   title: string
   description: string
   status: 'pending' | 'in_progress' | 'completed' | 'approved' | 'paid'
+  milestone_number: number
   completion_percentage: number
   amount: number
   currency: string
@@ -116,6 +129,12 @@ interface Milestone {
   }
   created_at: string
   updated_at: string
+  available_transitions: Array<{
+    name: string
+    target: string
+    description: string
+    permission: string
+  }>
 }
 
 interface TranslationRequestCardProps {

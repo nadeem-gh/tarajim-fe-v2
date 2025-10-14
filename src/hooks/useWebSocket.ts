@@ -48,7 +48,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         toast.success('Application accepted')
         break
       case 'application_rejected':
-        toast.info('Application rejected')
+        toast.error('Application rejected')
         break
       case 'contract_created':
         toast.success('Contract created')
@@ -63,7 +63,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         toast.success('Milestone assigned')
         break
       case 'milestone_status_changed':
-        toast.info(`Milestone status changed to ${data.new_status}`)
+        toast.success(`Milestone status changed to ${data.new_status}`)
         break
     }
   }, [queryClient])
@@ -107,7 +107,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         toast.success(message)
         break
       default:
-        toast.info(message)
+        toast.success(message)
     }
   }, [])
 

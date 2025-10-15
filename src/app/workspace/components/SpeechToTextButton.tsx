@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { useMutation } from 'react-query'
 import { api } from '@/lib/api'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
+import { useAudioRecorder } from '@/hooks/useAudioRecorder'
+import { getSTTMethod, setSTTMethod, type STTMethod } from '@/lib/userPreferences'
+import STTMethodToggle from '@/components/STTMethodToggle'
 import toast from 'react-hot-toast'
 import { 
   MicrophoneIcon, 
@@ -13,7 +16,9 @@ import {
   XCircleIcon,
   ArrowPathIcon,
   SpeakerWaveIcon,
-  SpeakerXMarkIcon
+  SpeakerXMarkIcon,
+  CpuChipIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline'
 
 interface SpeechToTextButtonProps {
@@ -37,6 +42,13 @@ export default function SpeechToTextButton({
   const [showLanguageSelector, setShowLanguageSelector] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
+  
+  // New state for hybrid STT
+  const [sttMethod, setSTTMethodState] = useState<STTMethod>('browser')
+  const [whisperSessionId, setWhisperSessionId] = useState<string | null>(null)
+  const [chunkIndex, setChunkIndex] = useState(0)
+  const [isProcessingChunk, setIsProcessingChunk] = useState(false)
+  const [whisperStatus, setWhisperStatus] = useState('')
 
   // Speech recognition hook
   const {
@@ -49,8 +61,7 @@ export default function SpeechToTextButton({
     reset,
     supportedLanguages,
     currentLanguage,
-    setLanguage,
-    speechConfig
+    setLanguage
   } = useSpeechRecognition({
     language,
     onResult: (result) => {
@@ -72,6 +83,60 @@ export default function SpeechToTextButton({
       }
     }
   })
+
+  // Audio recorder hook for Whisper streaming
+  const {
+    isRecording: isWhisperRecording,
+    isSupported: isAudioSupported,
+    audioChunks,
+    error: audioError,
+    startRecording: startWhisperRecording,
+    stopRecording: stopWhisperRecording,
+    clearChunks,
+    getTotalDuration
+  } = useAudioRecorder({
+    chunkInterval: 1000, // 1 second chunks
+    onChunkReady: (chunk) => {
+      // Handle chunk in a separate function to avoid hoisting issues
+      if (whisperSessionId) {
+        handleWhisperChunk(chunk)
+      }
+    },
+    onError: (error) => {
+      toast.error(`Audio recording error: ${error}`)
+      setIsRecording(false)
+    },
+    onStart: () => {
+      setIsRecording(true)
+      setWhisperStatus('Recording...')
+      toast.success('Whisper recording started')
+    },
+    onStop: () => {
+      setIsRecording(false)
+      setWhisperStatus('Processing final chunk...')
+    }
+  })
+
+  // Load STT method preference on mount
+  useEffect(() => {
+    const savedMethod = getSTTMethod()
+    setSTTMethodState(savedMethod)
+  }, [])
+
+  // Handle Whisper audio chunk
+  const handleWhisperChunk = async (chunk: any) => {
+    if (!whisperSessionId) return
+    
+    setIsProcessingChunk(true)
+    setWhisperStatus(`Uploading chunk ${chunk.index}...`)
+    
+    await uploadWhisperChunkMutation.mutateAsync({
+      audioChunk: chunk.blob,
+      chunkIndex: chunk.index,
+      isFinal: false, // Will be true when user stops recording
+      sessionId: whisperSessionId
+    })
+  }
 
   // Save transcription mutation
   const saveTranscriptionMutation = useMutation(
@@ -97,15 +162,91 @@ export default function SpeechToTextButton({
     }
   )
 
+  // Whisper chunk upload mutation
+  const uploadWhisperChunkMutation = useMutation(
+    async (data: { audioChunk: Blob; chunkIndex: number; isFinal: boolean; sessionId: string }) => {
+      const formData = new FormData()
+      formData.append('audio_chunk', data.audioChunk)
+      formData.append('session_id', data.sessionId)
+      formData.append('chunk_index', data.chunkIndex.toString())
+      formData.append('is_final', data.isFinal.toString())
+      formData.append('language', currentLanguage)
+      
+      const response = await api.post('/speech/transcribe-stream/', formData)
+      return response.data
+    },
+    {
+      onSuccess: (data) => {
+        if (data.is_final) {
+          // Final result - update transcription
+          setCurrentText(data.text)
+          setConfidence(data.confidence || 0.9)
+          setWhisperStatus('Transcription complete')
+          toast.success('Whisper transcription completed')
+        } else {
+          // Chunk stored successfully
+          setWhisperStatus(`Chunk ${data.chunk_index} uploaded`)
+        }
+        setIsProcessingChunk(false)
+      },
+      onError: (error: any) => {
+        console.error('Whisper chunk upload error:', error)
+        const errorMessage = error.response?.data?.error || 'Failed to upload audio chunk'
+        toast.error(errorMessage)
+        setIsProcessingChunk(false)
+        setWhisperStatus('Upload failed')
+      }
+    }
+  )
+
+  // Handle STT method change
+  const handleSTTMethodChange = (method: STTMethod) => {
+    setSTTMethodState(method)
+    setSTTMethod(method)
+    
+    // Reset state when switching methods
+    setCurrentText('')
+    setConfidence(0)
+    reset()
+    clearChunks()
+    setWhisperSessionId(null)
+    setChunkIndex(0)
+    setWhisperStatus('')
+  }
+
   // Handle start/stop recording
   const handleToggleRecording = () => {
     if (isRecording) {
       console.log('Stopping speech recognition...')
-      stopListening()
+      if (sttMethod === 'browser') {
+        stopListening()
+      } else {
+        // Whisper mode - stop recording and send final chunk
+        stopWhisperRecording()
+        if (whisperSessionId) {
+          // Send final chunk
+          uploadWhisperChunkMutation.mutate({
+            audioChunk: new Blob(), // Empty blob for final signal
+            chunkIndex: chunkIndex,
+            isFinal: true,
+            sessionId: whisperSessionId
+          })
+        }
+      }
     } else {
       console.log('Starting speech recognition...')
       reset()
-      startListening()
+      
+      if (sttMethod === 'browser') {
+        startListening()
+      } else {
+        // Whisper mode - generate session ID and start recording
+        const sessionId = crypto.randomUUID()
+        setWhisperSessionId(sessionId)
+        setChunkIndex(0)
+        setWhisperStatus('Starting Whisper recording...')
+        startWhisperRecording()
+      }
     }
   }
 
@@ -114,7 +255,7 @@ export default function SpeechToTextButton({
     console.log('Force stopping speech recognition...')
     stopListening()
     reset()
-    toast.info('Speech recognition force stopped')
+    toast('Speech recognition force stopped', { icon: 'ℹ️' })
   }
 
   // Text-to-Speech functionality
@@ -128,7 +269,7 @@ export default function SpeechToTextButton({
       // Stop current speech
       window.speechSynthesis.cancel()
       setIsPlaying(false)
-      toast.info('Speech stopped')
+      toast('Speech stopped', { icon: 'ℹ️' })
       return
     }
 
@@ -194,7 +335,7 @@ export default function SpeechToTextButton({
     setCurrentText('')
     setConfidence(0)
     reset()
-    toast.info('Transcription discarded')
+    toast('Transcription discarded', { icon: 'ℹ️' })
   }
 
   // Handle language change
@@ -256,6 +397,30 @@ export default function SpeechToTextButton({
         )}
       </div>
 
+      {/* STT Method Toggle */}
+      <STTMethodToggle
+        onMethodChange={handleSTTMethodChange}
+        disabled={disabled || isRecording}
+        className="w-full"
+      />
+
+      {/* Method Status Indicator */}
+      {sttMethod === 'whisper' && (
+        <div className="flex items-center space-x-2 text-sm text-purple-600 bg-purple-50 px-3 py-2 rounded-md">
+          <CpuChipIcon className="h-4 w-4" />
+          <span>Whisper AI Mode</span>
+          {whisperStatus && (
+            <>
+              <span className="text-gray-400">•</span>
+              <span className="text-gray-600">{whisperStatus}</span>
+            </>
+          )}
+          {isProcessingChunk && (
+            <ClockIcon className="h-4 w-4 animate-spin text-purple-600" />
+          )}
+        </div>
+      )}
+
       {/* Speech Recognition Button */}
       <div className="flex space-x-2">
         <button
@@ -274,8 +439,12 @@ export default function SpeechToTextButton({
             </>
           ) : (
             <>
-              <MicrophoneIcon className="h-5 w-5" />
-              <span>Start Recording</span>
+              {sttMethod === 'whisper' ? (
+                <CpuChipIcon className="h-5 w-5" />
+              ) : (
+                <MicrophoneIcon className="h-5 w-5" />
+              )}
+              <span>Start Recording ({sttMethod === 'whisper' ? 'Whisper' : 'Browser'})</span>
             </>
           )}
         </button>
@@ -387,7 +556,7 @@ export default function SpeechToTextButton({
           <div>Supported: {isSupported ? 'Yes' : 'No'}</div>
           <div>Listening: {isListening ? 'Yes' : 'No'}</div>
           <div>Language: {currentLanguage}</div>
-          <div>Config: {speechConfig ? 'Loaded' : 'Not loaded'}</div>
+          <div>Config: Loaded</div>
           <div>Saved Translation: {savedTranslation ? `"${savedTranslation.substring(0, 50)}..."` : 'None'}</div>
           <div>Has Saved Translation: {savedTranslation?.trim() ? 'Yes' : 'No'}</div>
         </div>

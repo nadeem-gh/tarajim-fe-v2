@@ -12,6 +12,7 @@ import {
   ClockIcon
 } from '@heroicons/react/24/outline'
 import Link from 'next/link'
+import ApiConnectionTest from '@/components/ApiConnectionTest'
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -68,6 +69,11 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* API Connection Test */}
+      <div className="mb-6">
+        <ApiConnectionTest />
+      </div>
+      
       <div className="py-8">
         <h1 className="text-3xl font-bold text-gray-900">
           Welcome back, {user.first_name}!

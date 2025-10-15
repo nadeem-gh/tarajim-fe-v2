@@ -110,6 +110,7 @@ export const getMilestoneWorkflowState = (
   return {
     canAssign: canPerformAction(milestone, 'assign') && userRole === 'requester', // Only requesters can assign
     canStart: canStart,
+    canResume: milestone.status === 'in_progress' && userRole === 'translator', // Only translators can resume in-progress milestones
     canSubmit: canPerformAction(milestone, 'submit') && userRole === 'translator', // Only translators can submit
     canApprove: canPerformAction(milestone, 'approve') && userRole === 'requester', // Only requesters can approve
     canMarkPaid: canPerformAction(milestone, 'mark_paid') && userRole === 'requester' // Only requesters can mark as paid

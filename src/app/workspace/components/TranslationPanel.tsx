@@ -271,7 +271,7 @@ export default function TranslationPanel({
                 language="ur"
                 disabled={isSaving}
                 className="w-full"
-                savedTranslation={sentence.translation}
+                savedTranslation={sentence.translated_text}
               />
             </div>
           )}

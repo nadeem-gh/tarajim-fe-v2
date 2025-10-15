@@ -251,6 +251,25 @@ export default function MilestoneCard({
     }
   )
 
+  // Resume milestone mutation (navigate to workspace)
+  const resumeMilestoneMutation = useMutation(
+    async () => {
+      // Navigate to translation workspace for in-progress milestones
+      window.location.href = `/workspace/${milestone.id}?book=${bookId}`
+      return Promise.resolve()
+    },
+    {
+      onSuccess: () => {
+        toast.success('Navigating to translation workspace')
+      },
+      onError: (error: any) => {
+        console.error('Resume milestone error:', error)
+        const errorMessage = 'Failed to navigate to workspace'
+        toast.error(errorMessage)
+      }
+    }
+  )
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-gray-100 text-gray-800'
@@ -280,6 +299,7 @@ export default function MilestoneCard({
   const canDelete = userRole === 'requester' && milestone.status === 'pending'
   const canAssign = workflowState.canAssign
   const canStart = workflowState.canStart
+  const canResume = workflowState.canResume
   const canSubmit = workflowState.canSubmit
   const canApprove = workflowState.canApprove
   const canMarkPaid = workflowState.canMarkPaid
@@ -479,6 +499,15 @@ export default function MilestoneCard({
                 className="px-3 py-1 text-xs font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded disabled:opacity-50"
               >
                 Start Work
+              </button>
+            )}
+            {canResume && (
+              <button
+                onClick={() => resumeMilestoneMutation.mutate()}
+                disabled={resumeMilestoneMutation.isLoading}
+                className="px-3 py-1 text-xs font-medium text-white bg-orange-600 hover:bg-orange-700 rounded disabled:opacity-50"
+              >
+                Resume Work
               </button>
             )}
             {canSubmit && (

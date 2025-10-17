@@ -97,9 +97,20 @@ export default function SpeechToTextButton({
   } = useAudioRecorder({
     chunkInterval: 1000, // 1 second chunks
     onChunkReady: (chunk) => {
-      // Handle chunk in a separate function to avoid hoisting issues
+      console.log('Whisper Debug - Chunk received:', chunk)
+      console.log('Whisper Debug - whisperSessionId:', whisperSessionId)
+      // Handle chunk directly to avoid hoisting issues
       if (whisperSessionId) {
-        handleWhisperChunk(chunk)
+        setIsProcessingChunk(true)
+        setWhisperStatus(`Uploading chunk ${chunk.index}...`)
+        
+        // Upload chunk immediately
+        uploadWhisperChunkMutation.mutate({
+          audioChunk: chunk.blob,
+          chunkIndex: chunk.index,
+          isFinal: false,
+          sessionId: whisperSessionId
+        })
       }
     },
     onError: (error) => {
@@ -121,46 +132,22 @@ export default function SpeechToTextButton({
   useEffect(() => {
     const savedMethod = getSTTMethod()
     setSTTMethodState(savedMethod)
-  }, [])
-
-  // Handle Whisper audio chunk
-  const handleWhisperChunk = async (chunk: any) => {
-    if (!whisperSessionId) return
     
-    setIsProcessingChunk(true)
-    setWhisperStatus(`Uploading chunk ${chunk.index}...`)
-    
-    await uploadWhisperChunkMutation.mutateAsync({
-      audioChunk: chunk.blob,
-      chunkIndex: chunk.index,
-      isFinal: false, // Will be true when user stops recording
-      sessionId: whisperSessionId
-    })
-  }
-
-  // Save transcription mutation
-  const saveTranscriptionMutation = useMutation(
-    async (data: { text: string; language: string; confidence: number }) => {
-      const response = await api.post('/speech/save-transcription/', data)
-      return response.data
-    },
-    {
-      onSuccess: (data) => {
-        toast.success('Transcription saved successfully')
-        setSaveError(false)
-        // Reset state only after successful save
-        setCurrentText('')
-        setConfidence(0)
-        reset()
-      },
-      onError: (error: any) => {
-        toast.error('Failed to save transcription')
-        console.error('Save transcription error:', error)
-        setSaveError(true)
-        // Don't reset state on error - keep the transcription for retry
-      }
+    // Test backend endpoint availability
+    if (savedMethod === 'whisper') {
+      console.log('Testing Whisper endpoint availability...')
+      api.get('/speech/whisper/health/')
+        .then(response => {
+          console.log('Whisper endpoint available:', response.data)
+        })
+        .catch(error => {
+          console.error('Whisper endpoint not available:', error)
+          toast.error('Whisper service not available, falling back to browser mode')
+          setSTTMethodState('browser')
+          setSTTMethod('browser')
+        })
     }
-  )
+  }, [])
 
   // Whisper chunk upload mutation
   const uploadWhisperChunkMutation = useMutation(
@@ -191,10 +178,35 @@ export default function SpeechToTextButton({
       },
       onError: (error: any) => {
         console.error('Whisper chunk upload error:', error)
-        const errorMessage = error.response?.data?.error || 'Failed to upload audio chunk'
-        toast.error(errorMessage)
+        console.error('Error response:', error.response?.data)
+        const errorMessage = error.response?.data?.error || error.message || 'Failed to upload audio chunk'
+        toast.error(`Whisper upload failed: ${errorMessage}`)
         setIsProcessingChunk(false)
         setWhisperStatus('Upload failed')
+      }
+    }
+  )
+
+  // Save transcription mutation
+  const saveTranscriptionMutation = useMutation(
+    async (data: { text: string; language: string; confidence: number }) => {
+      const response = await api.post('/speech/save-transcription/', data)
+      return response.data
+    },
+    {
+      onSuccess: (data) => {
+        toast.success('Transcription saved successfully')
+        setSaveError(false)
+        // Reset state only after successful save
+        setCurrentText('')
+        setConfidence(0)
+        reset()
+      },
+      onError: (error: any) => {
+        toast.error('Failed to save transcription')
+        console.error('Save transcription error:', error)
+        setSaveError(true)
+        // Don't reset state on error - keep the transcription for retry
       }
     }
   )
@@ -242,6 +254,7 @@ export default function SpeechToTextButton({
       } else {
         // Whisper mode - generate session ID and start recording
         const sessionId = crypto.randomUUID()
+        console.log('Whisper Debug - Starting recording with sessionId:', sessionId)
         setWhisperSessionId(sessionId)
         setChunkIndex(0)
         setWhisperStatus('Starting Whisper recording...')
@@ -260,6 +273,10 @@ export default function SpeechToTextButton({
 
   // Text-to-Speech functionality
   const handlePlaySavedTranslation = () => {
+    console.log('TTS Debug - savedTranslation:', savedTranslation)
+    console.log('TTS Debug - isPlaying:', isPlaying)
+    console.log('TTS Debug - currentLanguage:', currentLanguage)
+    
     if (!savedTranslation?.trim()) {
       toast.error('No saved translation to play')
       return

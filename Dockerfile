@@ -37,10 +37,14 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy built application
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Create necessary directories
+RUN mkdir -p ./public ./static ./.next/static
+
+# Copy the entire app directory from builder and then organize
+COPY --from=builder /app ./
+
+# Set proper ownership
+RUN chown -R nextjs:nodejs ./public ./static ./.next
 
 USER nextjs
 

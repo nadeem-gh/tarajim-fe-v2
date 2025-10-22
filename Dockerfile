@@ -1,5 +1,5 @@
-# Use Node.js 18 Alpine image
-FROM node:18-alpine AS base
+# Use Node.js 18 Alpine image with explicit registry
+FROM docker.io/node:18-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -37,14 +37,10 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Create necessary directories
-RUN mkdir -p ./public ./static ./.next/static
-
-# Copy the entire app directory from builder and then organize
-COPY --from=builder /app ./
-
-# Set proper ownership
-RUN chown -R nextjs:nodejs ./public ./static ./.next
+# Copy the standalone build from builder
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 USER nextjs
 
@@ -58,5 +54,5 @@ ENV HOSTNAME "0.0.0.0"
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3000/api/health || exit 1
 
-# Run the application
+# Run the Next.js standalone server
 CMD ["node", "server.js"]

@@ -16,6 +16,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Ensure public directory exists
+RUN mkdir -p /app/public
+
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NODE_ENV production
@@ -41,9 +44,8 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy public directory (create it first to avoid errors)
-RUN mkdir -p ./public
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+# Copy public directory from the build context
+COPY --chown=nextjs:nodejs ./public ./public
 
 USER nextjs
 

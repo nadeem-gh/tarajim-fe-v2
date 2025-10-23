@@ -16,8 +16,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Ensure public directory exists
-RUN mkdir -p /app/public
+# Ensure public directory exists and has content
+RUN mkdir -p /app/public && \
+    if [ ! -f /app/public/.gitkeep ]; then touch /app/public/.gitkeep; fi
 
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED 1
@@ -44,8 +45,8 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy public directory from the build context
-COPY --chown=nextjs:nodejs ./public ./public
+# Create empty public directory (Next.js will work without it)
+RUN mkdir -p ./public && touch ./public/.gitkeep
 
 USER nextjs
 

@@ -30,11 +30,15 @@ export default function BookDetail() {
     }
   }, [searchParams])
 
-  const { data: book, isLoading } = useQuery(
+  const { data: book, isLoading, error } = useQuery(
     ['book-detail', bookId],
     async () => {
       const response = await api.get(`/books/${bookId}/detail/`)
       return response.data
+    },
+    {
+      enabled: !!bookId, // Only run query if bookId exists
+      retry: 1, // Retry once on failure
     }
   )
 
@@ -125,6 +129,8 @@ export default function BookDetail() {
       }
     }
   )
+
+  // Create sample request mutation
 
   // Accept application mutation
   const acceptApplicationMutation = useMutation(
@@ -222,6 +228,33 @@ export default function BookDetail() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center">
+          <BookOpenIcon className="mx-auto h-12 w-12 text-red-400" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900">Error loading book</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            {(error as any)?.response?.status === 404 
+              ? "The book you're looking for doesn't exist."
+              : (error as any)?.response?.status === 403
+              ? "You don't have permission to view this book."
+              : "There was an error loading the book. Please try again."
+            }
+          </p>
+          <div className="mt-4">
+            <Link
+              href="/books"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+            >
+              Back to Books
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!book) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -231,6 +264,14 @@ export default function BookDetail() {
           <p className="mt-1 text-sm text-gray-500">
             The book you&apos;re looking for doesn&apos;t exist.
           </p>
+          <div className="mt-4">
+            <Link
+              href="/books"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+            >
+              Back to Books
+            </Link>
+          </div>
         </div>
       </div>
     )
@@ -330,6 +371,8 @@ export default function BookDetail() {
             </div>
           </div>
 
+          {/* Translation Requests Status */}
+
           {/* Actions */}
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions</h3>
@@ -356,6 +399,19 @@ export default function BookDetail() {
                   <UserPlusIcon className="h-5 w-5 mr-2" />
                   Submit Application
                 </button>
+              )}
+              
+              {/* Request Sample Translation Button - Only for requesters */}
+              
+              {/* Submit Sample Translation Button - Only for translators */}
+              {user?.role === 'translator' && (
+                <Link
+                  href={`/samples/submit/?book=${bookId}`}
+                  className="w-full flex items-center justify-center px-4 py-2 border border-purple-600 text-sm font-medium rounded-md text-purple-600 bg-white hover:bg-purple-50"
+                >
+                  <DocumentTextIcon className="h-5 w-5 mr-2" />
+                  Submit Sample Translation
+                </Link>
               )}
               
               {/* Generate Audio Button - Only available when translation is completed */}
@@ -676,6 +732,7 @@ export default function BookDetail() {
           </div>
         </div>
       )}
+
     </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { api } from '@/lib/api'
@@ -14,7 +14,10 @@ import {
   CheckCircleIcon,
   ClockIcon,
   EyeIcon,
-  PhotoIcon
+  PhotoIcon,
+  ExclamationTriangleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline'
 import SpeechToTextButton from '@/app/workspace/components/SpeechToTextButton'
 
@@ -36,20 +39,30 @@ interface SamplePage {
   word_count: number
   difficulty: string
   original_text: string
+  associated_images?: Array<{
+    src: string
+    alt: string
+    title?: string
+  }>
 }
 
-export default function SampleSubmissionPage() {
+function SampleSubmissionContent() {
   const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const bookId = searchParams.get('book')
   const queryClient = useQueryClient()
 
-  const [selectedPage, setSelectedPage] = useState<SamplePage | null>(null)
+  const [selectedSentence, setSelectedSentence] = useState<any>(null)
   const [translatedText, setTranslatedText] = useState('')
   const [translationMethod, setTranslationMethod] = useState<'typing' | 'speech'>('typing')
   const [wordCount, setWordCount] = useState(0)
   const [charCount, setCharCount] = useState(0)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [sentences, setSentences] = useState<any[]>([])
+  const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0)
+  const [paginationInfo, setPaginationInfo] = useState<any>(null)
 
   // Fetch book details
   const { data: book, isLoading: bookLoading } = useQuery(
@@ -61,19 +74,43 @@ export default function SampleSubmissionPage() {
     { enabled: !!bookId }
   )
 
-  // Fetch available sample pages
-  const { data: availablePages, isLoading: pagesLoading } = useQuery(
-    ['sample-pages', bookId],
+  // Fetch EPUB sentences with pagination (same as workplace)
+  const { data: sentencesData, isLoading: sentencesLoading } = useQuery(
+    ['epub-sentences', bookId, currentPage],
     async () => {
-      const response = await api.get(`/samples/available-pages/?book=${bookId}`)
+      const response = await api.get(`/workspace/books/${bookId}/epub/sentences/?page=${currentPage}&limit=10`)
       return response.data
     },
-    { enabled: !!bookId }
+    {
+      enabled: !!bookId,
+      onSuccess: (data) => {
+        setPaginationInfo(data.pagination)
+        
+        // If this is the first page, replace all sentences
+        if (currentPage === 1) {
+          setSentences(data.results)
+        } else {
+          // For subsequent pages, append to existing sentences
+          setSentences(prev => [...prev, ...data.results])
+        }
+        
+        // Set first sentence as selected if none selected
+        if (data.results.length > 0 && !selectedSentence) {
+          setSelectedSentence(data.results[0])
+          setCurrentSentenceIndex(0)
+        }
+      },
+      onError: (error: any) => {
+        toast.error('Failed to load EPUB content')
+        console.error('EPUB loading error:', error)
+      }
+    }
   )
 
   // Submit sample translation mutation
   const submitSampleMutation = useMutation(
     async (sampleData: any) => {
+      setIsSubmitting(true)
       const response = await api.post('/samples/submit/', sampleData)
       return response.data
     },
@@ -81,10 +118,12 @@ export default function SampleSubmissionPage() {
       onSuccess: () => {
         queryClient.invalidateQueries(['sample-pages', bookId])
         setTranslatedText('')
+        setIsSubmitting(false)
         toast.success('Sample translation submitted successfully!')
       },
       onError: (error: any) => {
         console.error('Submit sample error:', error)
+        setIsSubmitting(false)
         const errorMessage = error.response?.data?.error?.message || 
                            error.response?.data?.message || 
                            'Failed to submit sample translation'
@@ -100,9 +139,32 @@ export default function SampleSubmissionPage() {
     setCharCount(translatedText.length)
   }, [translatedText])
 
-  const handlePageSelect = (page: SamplePage) => {
-    setSelectedPage(page)
-    setTranslatedText('')
+  // Navigation functions (same as workplace)
+  const handleSentenceSelect = (index: number) => {
+    setCurrentSentenceIndex(index)
+    setSelectedSentence(sentences[index])
+    setTranslatedText(sentences[index]?.translated_text || '')
+  }
+
+  const handlePrevious = () => {
+    if (currentSentenceIndex > 0) {
+      const newIndex = currentSentenceIndex - 1
+      setCurrentSentenceIndex(newIndex)
+      setSelectedSentence(sentences[newIndex])
+      setTranslatedText(sentences[newIndex]?.translated_text || '')
+    }
+  }
+
+  const handleNext = () => {
+    if (currentSentenceIndex < sentences.length - 1) {
+      const newIndex = currentSentenceIndex + 1
+      setCurrentSentenceIndex(newIndex)
+      setSelectedSentence(sentences[newIndex])
+      setTranslatedText(sentences[newIndex]?.translated_text || '')
+    } else if (paginationInfo?.has_next) {
+      // Load next page
+      setCurrentPage(prev => prev + 1)
+    }
   }
 
   const handleTranslationUpdate = (text: string) => {
@@ -118,16 +180,17 @@ export default function SampleSubmissionPage() {
   }
 
   const handleSubmit = () => {
-    if (!selectedPage || !translatedText.trim()) {
-      toast.error('Please select a page and provide a translation')
+    if (!selectedSentence || !translatedText.trim()) {
+      toast.error('Please select a sentence and provide a translation')
       return
     }
 
     submitSampleMutation.mutate({
       book: bookId,
-      chapter_number: selectedPage.chapter_number,
-      page_number: selectedPage.page_number,
-      original_text: selectedPage.original_text,
+      chapter_number: selectedSentence.chapter_number,
+      page_number: selectedSentence.page_number,
+      sentence_number: selectedSentence.sentence_number,
+      original_text: selectedSentence.original_text,
       translated_text: translatedText,
       translation_method: translationMethod
     })
@@ -137,20 +200,25 @@ export default function SampleSubmissionPage() {
     if (!translatedText.trim()) return null
     
     const words = translatedText.trim().split(/\s+/).filter(word => word.length > 0)
-    const originalWords = selectedPage?.original_text.trim().split(/\s+/).filter(word => word.length > 0).length || 0
+    const originalWords = selectedSentence?.word_count || 0
+    const ratio = words.length / originalWords
     
-    if (words.length < originalWords * 0.5) {
-      return 'Translation seems too short. Please provide a more complete translation.'
-    }
-    
-    if (words.length > originalWords * 2) {
-      return 'Translation seems too long. Please provide a more concise translation.'
+    if (ratio < 0.5) {
+      return {
+        type: 'warning',
+        message: 'Translation seems too short compared to original'
+      }
+    } else if (ratio > 2) {
+      return {
+        type: 'warning',
+        message: 'Translation seems too long compared to original'
+      }
     }
     
     return null
   }
 
-  if (bookLoading || pagesLoading) {
+  if (bookLoading || sentencesLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -211,36 +279,42 @@ export default function SampleSubmissionPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar - Page Selection */}
+          {/* Sidebar - Sentence Navigation */}
           <div className="space-y-6">
+            {/* Translation Toolbar */}
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Select Page</h3>
-              <div className="space-y-3">
-                {availablePages?.map((page: SamplePage) => (
-                  <button
-                    key={`${page.chapter_number}-${page.page_number}`}
-                    onClick={() => handlePageSelect(page)}
-                    className={`w-full text-left p-3 rounded-lg border ${
-                      selectedPage?.chapter_number === page.chapter_number && 
-                      selectedPage?.page_number === page.page_number
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="font-medium text-gray-900">{page.title}</div>
-                    <div className="text-sm text-gray-500 mt-1">
-                      {page.word_count} words • {page.difficulty}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1 line-clamp-2">
-                      {page.preview_text}
-                    </div>
-                  </button>
-                ))}
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Navigation</h3>
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={handlePrevious}
+                  disabled={currentSentenceIndex === 0}
+                  className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeftIcon className="h-4 w-4 mr-1" />
+                  Previous
+                </button>
+                <span className="text-sm text-gray-500">
+                  {currentSentenceIndex + 1} of {sentences.length}
+                </span>
+                <button
+                  onClick={handleNext}
+                  disabled={currentSentenceIndex === sentences.length - 1 && !paginationInfo?.has_next}
+                  className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                  <ChevronRightIcon className="h-4 w-4 ml-1" />
+                </button>
               </div>
+              
+              {paginationInfo && (
+                <div className="text-xs text-gray-500 text-center">
+                  Page {paginationInfo.page} of {paginationInfo.total_pages}
+                </div>
+              )}
             </div>
 
             {/* Translation Stats */}
-            {selectedPage && (
+            {selectedSentence && (
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Translation Stats</h3>
                 <div className="space-y-3">
@@ -254,8 +328,16 @@ export default function SampleSubmissionPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Original Words:</span>
-                    <span className="text-sm font-medium">{selectedPage.word_count}</span>
+                    <span className="text-sm font-medium">{selectedSentence.word_count}</span>
                   </div>
+                  {selectedSentence.word_count > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Length Ratio:</span>
+                      <span className="text-sm font-medium">
+                        {Math.round((wordCount / selectedSentence.word_count) * 100)}%
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -263,7 +345,7 @@ export default function SampleSubmissionPage() {
 
           {/* Main Translation Area */}
           <div className="lg:col-span-3">
-            {selectedPage ? (
+            {selectedSentence ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Source Text - Left Side */}
                 <div className="space-y-4">
@@ -272,15 +354,12 @@ export default function SampleSubmissionPage() {
                     <div className="p-6">
                       <div className="mb-4">
                         <div className="text-sm text-gray-500 mb-2">
-                          Chapter {selectedPage.chapter_number}, Page {selectedPage.page_number}
-                        </div>
-                        <div className="text-lg font-medium text-gray-900">
-                          {selectedPage.title}
+                          Chapter {selectedSentence.chapter_number}, Page {selectedSentence.page_number}, Sentence {selectedSentence.sentence_number}
                         </div>
                       </div>
                       <div className="prose max-w-none">
                         <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
-                          {selectedPage.original_text}
+                          {selectedSentence.original_text}
                         </p>
                       </div>
                     </div>
@@ -298,7 +377,7 @@ export default function SampleSubmissionPage() {
                           onClick={() => handleMethodChange('typing')}
                           className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
                             translationMethod === 'typing'
-                              ? 'bg-blue-100 text-blue-700'
+                              ? 'bg-primary-100 text-primary-700'
                               : 'text-gray-500 hover:text-gray-700'
                           }`}
                         >
@@ -309,7 +388,7 @@ export default function SampleSubmissionPage() {
                           onClick={() => handleMethodChange('speech')}
                           className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
                             translationMethod === 'speech'
-                              ? 'bg-blue-100 text-blue-700'
+                              ? 'bg-primary-100 text-primary-700'
                               : 'text-gray-500 hover:text-gray-700'
                           }`}
                         >
@@ -321,48 +400,137 @@ export default function SampleSubmissionPage() {
 
                     {/* Translation Input */}
                     <div className="px-6 py-6">
-                      {translationMethod === 'typing' ? (
-                        <textarea
-                          value={translatedText}
-                          onChange={(e) => handleTranslationUpdate(e.target.value)}
-                          placeholder="Enter your translation here..."
-                          className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                        />
-                      ) : (
-                        <div className="space-y-4">
-                          <SpeechToTextButton
-                            onTranscription={handleSpeechTranscription}
-                            language={book.target_language}
-                            className="w-full"
-                          />
+                      <div className="space-y-4">
+                        {/* Stats */}
+                        <div className="flex items-center justify-between text-sm text-gray-500">
+                          <div className="flex items-center space-x-4">
+                            <span>{wordCount} words</span>
+                            <span>{charCount} characters</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span>Original: {selectedSentence.word_count} words</span>
+                            {selectedSentence.word_count > 0 && (
+                              <span className="text-xs">
+                                ({Math.round((wordCount / selectedSentence.word_count) * 100)}% length)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Validation Message */}
+                        {getValidationMessage() && (
+                          <div className={`flex items-center p-3 rounded-md ${
+                            getValidationMessage()?.type === 'warning' 
+                              ? 'bg-yellow-50 border border-yellow-200' 
+                              : 'bg-red-50 border border-red-200'
+                          }`}>
+                            <ExclamationTriangleIcon className={`h-4 w-4 mr-2 ${
+                              getValidationMessage()?.type === 'warning' ? 'text-yellow-600' : 'text-red-600'
+                            }`} />
+                            <span className={`text-sm ${
+                              getValidationMessage()?.type === 'warning' ? 'text-yellow-700' : 'text-red-700'
+                            }`}>
+                              {getValidationMessage()?.message}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Image Context */}
+                        {selectedSentence.associated_images && selectedSentence.associated_images.length > 0 && (
+                          <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="flex items-center mb-3">
+                              <PhotoIcon className="h-4 w-4 text-blue-600 mr-2" />
+                              <span className="text-sm font-medium text-blue-900">
+                                Context Images ({selectedSentence.associated_images.length})
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                              {selectedSentence.associated_images.map((image: any, index: number) => (
+                                <div key={index} className="relative group">
+                                  <div className="bg-white rounded border border-blue-200 overflow-hidden">
+                                    <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex items-center justify-center">
+                                      <div className="text-center p-2">
+                                        <PhotoIcon className="h-6 w-6 text-gray-400 mx-auto mb-1" />
+                                        <p className="text-xs text-gray-500 truncate">
+                                          {image.alt || 'Image'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="p-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs text-gray-500 truncate">
+                                          {image.src}
+                                        </span>
+                                        <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-gray-600">
+                                          <EyeIcon className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            <p className="text-xs text-blue-700 mt-2">
+                              These images provide context for the sentence you're translating. Consider their content when crafting your translation.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Text Area */}
+                        <div className="relative">
                           <textarea
                             value={translatedText}
                             onChange={(e) => handleTranslationUpdate(e.target.value)}
-                            placeholder="Your speech will be transcribed here, or you can type directly..."
-                            className="w-full h-48 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                            placeholder="Enter your translation here..."
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                            rows={6}
                           />
                         </div>
-                      )}
 
-                      {/* Validation Message */}
-                      {getValidationMessage() && (
-                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                          <div className="flex items-center">
-                            <ClockIcon className="h-4 w-4 text-yellow-600 mr-2" />
-                            <span className="text-sm text-yellow-800">{getValidationMessage()}</span>
+                        {/* Speech to Text Section */}
+                        {translationMethod === 'speech' && (
+                          <div className="border-t border-gray-200 pt-4">
+                            <SpeechToTextButton
+                              onTranscription={handleSpeechTranscription}
+                              language={book.target_language}
+                              disabled={isSubmitting}
+                              className="w-full"
+                              savedTranslation={translatedText}
+                            />
+                          </div>
+                        )}
+
+                        {/* Quick Actions */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleTranslationUpdate('')}
+                              className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700"
+                            >
+                              Clear
+                            </button>
+                            <button
+                              onClick={() => handleTranslationUpdate(selectedSentence.original_text)}
+                              className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700"
+                            >
+                              Copy Original
+                            </button>
                           </div>
                         </div>
-                      )}
+                      </div>
                     </div>
 
                     {/* Submit Button */}
                     <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
                       <button
                         onClick={handleSubmit}
-                        disabled={!translatedText.trim() || submitSampleMutation.isLoading}
-                        className="w-full flex items-center justify-center px-4 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!translatedText.trim() || isSubmitting}
+                        className="w-full flex items-center justify-center px-4 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {submitSampleMutation.isLoading ? (
+                        {isSubmitting ? (
                           <>
                             <ClockIcon className="h-4 w-4 mr-2 animate-spin" />
                             Submitting...
@@ -381,13 +549,28 @@ export default function SampleSubmissionPage() {
             ) : (
               <div className="bg-white rounded-lg shadow p-12 text-center">
                 <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Page to Translate</h3>
-                <p className="text-gray-600">Choose a page from the sidebar to start your sample translation.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Sentence to Translate</h3>
+                <p className="text-gray-600">Use the navigation buttons to browse through sentences and start your sample translation.</p>
               </div>
             )}
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SampleSubmissionPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <ClockIcon className="h-8 w-8 text-gray-400 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <SampleSubmissionContent />
+    </Suspense>
   )
 }

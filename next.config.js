@@ -15,8 +15,8 @@ const nextConfig = {
   
   // Environment variables
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-    NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000',
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://api.tarajim.org/api',
+    NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || 'wss://api.tarajim.org/api',
   },
   
   // Webpack configuration
@@ -80,9 +80,18 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: '/api/health',
-        destination: '/api/health',
+        source: '/api/workspace/books/:path*',
+        destination: 'http://localhost:8000/api/workspace/books/:path*',
       },
+      {
+        source: '/api/workspace/milestones/:path*',
+        destination: 'http://localhost:8000/api/workspace/milestones/:path*',
+      },
+      {
+        source: '/api/workspace/accounts/:path*',
+        destination: 'http://localhost:8000/api/workspace/accounts/:path*',
+      },
+      // Note: epub-translations are handled by Next.js API routes, not rewrites
     ];
   },
   

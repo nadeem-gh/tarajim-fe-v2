@@ -10,10 +10,13 @@ import {
   ArrowLeftIcon,
   BookOpenIcon,
   ClockIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ComputerDesktopIcon,
+  BookOpenIcon as ReaderIcon
 } from '@heroicons/react/24/outline'
 import Link from 'next/link'
 import EpubReader from '../components/EpubReader'
+import NewEpubReader from '../components/NewEpubReader'
 import TranslationPanel from '../components/TranslationPanel'
 import MilestoneProgress from '../components/MilestoneProgress'
 import TranslationToolbar from '../components/TranslationToolbar'
@@ -95,6 +98,7 @@ export default function TranslationWorkspace() {
   const [currentPage, setCurrentPage] = useState(1)
   const [paginationInfo, setPaginationInfo] = useState<PaginationInfo | null>(null)
   const [allSentences, setAllSentences] = useState<Sentence[]>([]) // Store all loaded sentences
+  const [readerMode, setReaderMode] = useState<'classic' | 'epub'>('classic')
 
   // Fetch milestone details
   const { data: milestoneData } = useQuery(
@@ -310,64 +314,102 @@ export default function TranslationWorkspace() {
               <div className="text-sm text-gray-500">
                 {bookInfo?.language} → {bookInfo?.target_language}
               </div>
+              
+              {/* Mode Toggle */}
+              <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setReaderMode('classic')}
+                  className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                    readerMode === 'classic'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <ComputerDesktopIcon className="h-4 w-4" />
+                  <span>Classic</span>
+                </button>
+                <button
+                  onClick={() => setReaderMode('epub')}
+                  className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                    readerMode === 'epub'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <ReaderIcon className="h-4 w-4" />
+                  <span>EPUB Reader</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Milestone Progress */}
-            {milestone && progress && (
-              <MilestoneProgress
-                milestone={milestone}
-                progress={progress}
+      {/* Conditional Rendering Based on Mode */}
+      {readerMode === 'epub' ? (
+        <NewEpubReader
+          book={{
+            id: parseInt(bookId || '0'),
+            title: bookInfo?.title || '',
+            epub_file: '' // We'll get the EPUB file from the backend endpoint
+          }}
+          onClose={() => setReaderMode('classic')}
+        />
+      ) : (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* Milestone Progress */}
+              {milestone && progress && (
+                <MilestoneProgress
+                  milestone={milestone}
+                  progress={progress}
+                />
+              )}
+
+              {/* Translation Toolbar */}
+              <TranslationToolbar
+                milestoneId={milestoneId}
+                bookId={bookId}
+                currentIndex={currentSentenceIndex}
+                totalSentences={sentences.length}
+                paginationInfo={paginationInfo}
+                onPrevious={handlePrevious}
+                onNext={handleNext}
               />
-            )}
+            </div>
 
-            {/* Translation Toolbar */}
-            <TranslationToolbar
-              milestoneId={milestoneId}
-              bookId={bookId}
-              currentIndex={currentSentenceIndex}
-              totalSentences={sentences.length}
-              paginationInfo={paginationInfo}
-              onPrevious={handlePrevious}
-              onNext={handleNext}
-            />
-          </div>
+            {/* Main Translation Area - Side by Side */}
+            <div className="lg:col-span-3">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* EPUB Reader - Left Side */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium text-gray-900">Source Text</h3>
+                  <EpubReader
+                    sentences={sentences}
+                    currentIndex={currentSentenceIndex}
+                    onSentenceSelect={handleSentenceSelect}
+                    onPrevious={handlePrevious}
+                    onNext={handleNext}
+                  />
+                </div>
 
-          {/* Main Translation Area - Side by Side */}
-          <div className="lg:col-span-3">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* EPUB Reader - Left Side */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">Source Text</h3>
-                <EpubReader
-                  sentences={sentences}
-                  currentIndex={currentSentenceIndex}
-                  onSentenceSelect={handleSentenceSelect}
-                  onPrevious={handlePrevious}
-                  onNext={handleNext}
-                />
-              </div>
-
-              {/* Translation Panel - Right Side */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">Translation</h3>
-                <TranslationPanel
-                  sentence={currentSentence}
-                  onTranslationUpdate={handleTranslationUpdate}
-                  onSave={handleSave}
-                  isSaving={saveTranslationMutation.isLoading}
-                />
+                {/* Translation Panel - Right Side */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium text-gray-900">Translation</h3>
+                  <TranslationPanel
+                    sentence={currentSentence}
+                    onTranslationUpdate={handleTranslationUpdate}
+                    onSave={handleSave}
+                    isSaving={saveTranslationMutation.isLoading}
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

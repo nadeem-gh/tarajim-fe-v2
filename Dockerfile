@@ -53,8 +53,17 @@ USER nextjs
 # Expose port
 EXPOSE 3000
 
+# Add build args
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_WS_URL
+
+# Set environment variables for build
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
+
+
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \

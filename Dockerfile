@@ -20,9 +20,15 @@ COPY . .
 RUN mkdir -p /app/public && \
     if [ ! -f /app/public/.gitkeep ]; then touch /app/public/.gitkeep; fi
 
+# Add build args
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_WS_URL
+
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NODE_ENV production
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 
 # Install all dependencies including dev dependencies for build
 RUN npm install
@@ -53,13 +59,7 @@ USER nextjs
 # Expose port
 EXPOSE 3000
 
-# Add build args
-ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_WS_URL
-
-# Set environment variables for build
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
+# Set runtime environment variables
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 

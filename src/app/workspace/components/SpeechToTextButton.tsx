@@ -27,6 +27,7 @@ interface SpeechToTextButtonProps {
   disabled?: boolean
   className?: string
   savedTranslation?: string // Add saved translation text for TTS
+  disableSave?: boolean // Disable saving transcriptions to backend
 }
 
 export default function SpeechToTextButton({
@@ -34,7 +35,8 @@ export default function SpeechToTextButton({
   language = 'ur',
   disabled = false,
   className = '',
-  savedTranslation
+  savedTranslation,
+  disableSave = false
 }: SpeechToTextButtonProps) {
   const [isRecording, setIsRecording] = useState(false)
   const [currentText, setCurrentText] = useState('')
@@ -326,13 +328,18 @@ export default function SpeechToTextButton({
       // First update the parent component
       onTranscription(currentText.trim())
       
-      // Then save transcription to database
-      // State will be reset in the mutation's onSuccess callback
-      saveTranscriptionMutation.mutate({
-        text: currentText.trim(),
-        language: currentLanguage,
-        confidence: confidence
-      })
+      // Only save transcription to database if not disabled
+      if (!disableSave) {
+        saveTranscriptionMutation.mutate({
+          text: currentText.trim(),
+          language: currentLanguage,
+          confidence: confidence
+        })
+      } else {
+        // If save is disabled, just reset the state
+        setCurrentText('')
+        setConfidence(0)
+      }
     }
   }
 

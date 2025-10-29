@@ -34,14 +34,17 @@ class WebSocketService {
 
   private getWebSocketUrl(endpoint: string): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.host
+    // Use backend host for WebSocket connections (port 8000)
+    const host = 'localhost:8000'
     return `${protocol}//${host}${endpoint}`
   }
 
   public connect(): void {
     console.log('WebSocket service connecting...')
-    this.connectWorkflowSocket()
-    this.connectNotificationSocket()
+    // Temporarily disable WebSocket connections due to backend configuration issues
+    console.log('WebSocket connections temporarily disabled')
+    // this.connectWorkflowSocket()
+    // this.connectNotificationSocket()
   }
 
   private connectInternal(): void {
@@ -156,11 +159,20 @@ class WebSocketService {
   }
 
   private getCurrentBookId(): string | null {
-    // Extract book ID from current URL
+    // Extract book ID from current URL or search params
     const path = window.location.pathname
-    const bookMatch = path.match(/\/books\/(\d+)/)
-    const bookId = bookMatch ? bookMatch[1] : null
-    console.log('Extracted book ID from URL:', bookId, 'from path:', path)
+    const searchParams = new URLSearchParams(window.location.search)
+    
+    // First try to get from URL path /books/(\d+)/
+    let bookMatch = path.match(/\/books\/(\d+)/)
+    let bookId = bookMatch ? bookMatch[1] : null
+    
+    // If not found in path, try to get from search params (e.g., ?book=2)
+    if (!bookId) {
+      bookId = searchParams.get('book')
+    }
+    
+    console.log('Extracted book ID from URL:', bookId, 'from path:', path, 'search params:', searchParams.toString())
     return bookId
   }
 

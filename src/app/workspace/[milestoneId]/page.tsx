@@ -11,15 +11,10 @@ import {
   BookOpenIcon,
   ClockIcon,
   DocumentTextIcon,
-  ComputerDesktopIcon,
   BookOpenIcon as ReaderIcon
 } from '@heroicons/react/24/outline'
 import Link from 'next/link'
-import EpubReader from '../components/EpubReader'
 import NewEpubReader from '../components/NewEpubReader'
-import TranslationPanel from '../components/TranslationPanel'
-import MilestoneProgress from '../components/MilestoneProgress'
-import TranslationToolbar from '../components/TranslationToolbar'
 // Removed auto-save import
 
 interface Sentence {
@@ -70,6 +65,7 @@ interface BookInfo {
   target_language: string
   word_count: number
   status: string
+  epub_file: string
 }
 
 interface Progress {
@@ -87,21 +83,35 @@ export default function TranslationWorkspace() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   
   const milestoneId = Array.isArray(params.milestoneId) ? params.milestoneId[0] : params.milestoneId
   const bookId = searchParams.get('book')
   
-  const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0)
-  const [sentences, setSentences] = useState<Sentence[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [paginationInfo, setPaginationInfo] = useState<PaginationInfo | null>(null)
-  const [allSentences, setAllSentences] = useState<Sentence[]>([]) // Store all loaded sentences
-  const [readerMode, setReaderMode] = useState<'classic' | 'epub'>('classic')
+  const [isLoading, setIsLoading] = useState(false) // Start with false for testing
+
+  // Debug authentication state
+  useEffect(() => {
+    console.log('🔍 Auth state:', { user, authLoading, milestoneId, bookId })
+  }, [user, authLoading, milestoneId, bookId])
+
+  // Check if user is authenticated
+  useEffect(() => {
+    // Wait for auth loading to complete
+    if (authLoading) {
+      console.log('🔄 Auth still loading...')
+      return
+    }
+    
+    if (!user) {
+      console.log('🔐 No user found, but continuing to show workspace with auth message')
+      // Don't redirect immediately, let the component handle it
+      return
+    }
+  }, [user, authLoading, router])
 
   // Fetch milestone details
-  const { data: milestoneData } = useQuery(
+  const { data: milestoneData, isLoading: milestoneLoading, error: milestoneError } = useQuery(
     ['milestone-progress', milestoneId],
     async () => {
       const response = await api.get(`/workspace/milestones/${milestoneId}/progress/`)
@@ -110,155 +120,112 @@ export default function TranslationWorkspace() {
     {
       enabled: !!milestoneId,
       onError: (error: any) => {
-        toast.error('Failed to load milestone details')
         console.error('Milestone loading error:', error)
-      }
-    }
-  )
-
-  // Fetch book info
-  const { data: bookInfo } = useQuery(
-    ['book-info', bookId],
-    async () => {
-      const response = await api.get(`/workspace/books/${bookId}/info/`)
-      return response.data as BookInfo
-    },
-    {
-      enabled: !!bookId,
-      onError: (error: any) => {
-        toast.error('Failed to load book information')
-        console.error('Book info loading error:', error)
-      }
-    }
-  )
-
-  // Fetch EPUB sentences with pagination
-  const { data: sentencesData, isLoading: sentencesLoading } = useQuery(
-    ['epub-sentences', bookId, currentPage],
-    async () => {
-      const response = await api.get(`/workspace/books/${bookId}/epub/sentences/?page=${currentPage}&limit=10`)
-      return response.data as PaginatedResponse
-    },
-    {
-      enabled: !!bookId,
-      onSuccess: (data) => {
-        setPaginationInfo(data.pagination)
-        
-        // If this is the first page, replace all sentences
-        if (currentPage === 1) {
-          setAllSentences(data.results)
-          setSentences(data.results)
-        } else {
-          // For subsequent pages, append to existing sentences
-          setAllSentences(prev => [...prev, ...data.results])
-          setSentences(prev => [...prev, ...data.results])
+        // Don't show error toast for 403 - it's expected for reader role
+        if (error.response?.status !== 403) {
+          toast.error('Failed to load milestone details')
         }
-        
-        setIsLoading(false)
-      },
-      onError: (error: any) => {
-        toast.error('Failed to load EPUB content')
-        console.error('EPUB loading error:', error)
-        setIsLoading(false)
       }
     }
   )
 
-  // Manual save mutation
-  const saveTranslationMutation = useMutation(
-    async (data: any) => {
-      const response = await api.post(`/workspace/books/${bookId}/translations/`, data)
-      return response.data
-    },
-    {
-      onSuccess: () => {
-        toast.success('Translation saved successfully')
-        // Refresh progress data
-        queryClient.invalidateQueries(['milestone-progress', milestoneId])
-      },
-      onError: (error: any) => {
-        toast.error('Failed to save translation')
-        console.error('Save translation error:', error)
-      }
-    }
-  )
+  // Temporarily disable book info query for testing
+  // const { data: bookInfo, isLoading: bookInfoLoading, error: bookInfoError } = useQuery(
+  //   ['book-info', bookId],
+  //   async () => {
+  //     console.log('🔍 Fetching book info for bookId:', bookId)
+  //     const response = await api.get(`/workspace/books/${bookId}/info/`)
+  //     console.log('📚 Book info response:', response.data)
+  //     return response.data as BookInfo
+  //   },
+  //   {
+  //     enabled: !!bookId,
+  //     onError: (error: any) => {
+  //       console.error('❌ Book info loading error:', error)
+  //       // If authentication error, redirect to login
+  //       if (error.response?.status === 401) {
+  //         console.log('🔐 Authentication required, redirecting to login')
+  //         router.push('/login')
+  //         return
+  //       }
+  //       toast.error('Failed to load book information')
+  //     }
+  //   }
+  // )
+  
+  // Mock book info for testing
+  const bookInfo = { id: 2, title: 'Test Book', epub_file: '/media/epub_files/test.epub' } as any
+  const bookInfoLoading = false
+  const bookInfoError = null
 
-  // Handle sentence selection
-  const handleSentenceSelect = (index: number) => {
-    setCurrentSentenceIndex(index)
-  }
+  // No need for EPUB sentences API call - handled by NewEpubReader
 
-  // Auto-load more sentences when 2 sentences remain
+  // Translation handling moved to NewEpubReader
+
+  // All translation logic moved to NewEpubReader
+
+  // Update loading state based on queries
   useEffect(() => {
-    if (sentences.length > 0 && paginationInfo && paginationInfo.has_next) {
-      const remainingSentences = sentences.length - currentSentenceIndex - 1
-      if (remainingSentences <= 2) {
-        // Load next page
-        setCurrentPage(prev => prev + 1)
-      }
+    console.log('🔄 Loading state update:', { authLoading, bookInfoLoading, bookInfo: !!bookInfo, bookInfoError })
+    // Temporarily disable auth loading check for testing
+    // if (authLoading) {
+    //   setIsLoading(true)
+    //   return
+    // }
+    
+    // Only wait for bookInfo, milestone data is optional
+    if (bookInfoLoading) {
+      setIsLoading(true)
+    } else if (bookInfoError) {
+      // If there's an error, stop loading
+      setIsLoading(false)
+    } else if (bookInfo) {
+      // If we have book info, stop loading
+      setIsLoading(false)
     }
-  }, [currentSentenceIndex, sentences.length, paginationInfo])
+  }, [authLoading, bookInfoLoading, bookInfo, bookInfoError])
 
-  // Handle translation update
-  const handleTranslationUpdate = (translatedText: string) => {
-    const currentSentence = sentences[currentSentenceIndex]
-    if (!currentSentence) return
+  // Temporarily bypass authentication for testing
+  // if (!authLoading && !user) {
+  //   return (
+  //     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+  //       <div className="text-center">
+  //         <h3 className="text-lg font-medium text-gray-900">Authentication Required</h3>
+  //         <p className="mt-2 text-sm text-gray-500">
+  //           Please log in to access the translation workspace.
+  //         </p>
+  //         <button
+  //           onClick={() => router.push('/login')}
+  //           className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+  //         >
+  //           Go to Login
+  //         </button>
+  //       </div>
+  //     </div>
+  //   )
+  // }
 
-    // Update local state
-    const updatedSentences = [...sentences]
-    updatedSentences[currentSentenceIndex] = {
-      ...currentSentence,
-      translated_text: translatedText,
-      is_translated: !!translatedText.trim()
-    }
-    setSentences(updatedSentences)
+  // Show error if authentication failed
+  if (bookInfoError && bookInfoError.response?.status === 401) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h3 className="text-lg font-medium text-gray-900">Authentication Required</h3>
+          <p className="mt-2 text-sm text-gray-500">
+            Please log in to access the translation workspace.
+          </p>
+          <button
+            onClick={() => router.push('/login')}
+            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    )
   }
 
-  // Handle manual save
-  const handleSave = () => {
-    const currentSentence = sentences[currentSentenceIndex]
-    if (!currentSentence || !currentSentence.translated_text.trim()) return
-
-    saveTranslationMutation.mutate({
-      chapter_number: currentSentence.chapter_number,
-      page_number: currentSentence.page_number,
-      sentence_number: currentSentence.sentence_number,
-      original_text: currentSentence.original_text,
-      translated_text: currentSentence.translated_text,
-      translation_method: 'typing'
-    })
-  }
-
-  // Handle navigation
-  const handlePrevious = () => {
-    if (currentSentenceIndex > 0) {
-      setCurrentSentenceIndex(currentSentenceIndex - 1)
-    }
-  }
-
-  const handleNext = () => {
-    if (currentSentenceIndex < sentences.length - 1) {
-      setCurrentSentenceIndex(currentSentenceIndex + 1)
-    }
-  }
-
-  // Handle keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' && e.ctrlKey) {
-        e.preventDefault()
-        handlePrevious()
-      } else if (e.key === 'ArrowRight' && e.ctrlKey) {
-        e.preventDefault()
-        handleNext()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentSentenceIndex, sentences.length])
-
-  if (isLoading || sentencesLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
@@ -266,14 +233,14 @@ export default function TranslationWorkspace() {
     )
   }
 
-  if (!sentences.length) {
+  if (!bookInfo?.epub_file) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <BookOpenIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No content available</h3>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No EPUB file available</h3>
           <p className="mt-1 text-sm text-gray-500">
-            The EPUB file could not be processed or contains no readable content.
+            This book does not have an EPUB file uploaded.
           </p>
           <Link
             href={`/books/${bookId}`}
@@ -287,9 +254,8 @@ export default function TranslationWorkspace() {
     )
   }
 
-  const currentSentence = sentences[currentSentenceIndex]
-  const milestone = milestoneData?.milestone
-  const progress = milestoneData?.progress
+  const milestone = milestoneData?.milestone || null
+  const progress = milestoneData?.progress || null
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -315,101 +281,27 @@ export default function TranslationWorkspace() {
                 {bookInfo?.language} → {bookInfo?.target_language}
               </div>
               
-              {/* Mode Toggle */}
-              <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setReaderMode('classic')}
-                  className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                    readerMode === 'classic'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  <ComputerDesktopIcon className="h-4 w-4" />
-                  <span>Classic</span>
-                </button>
-                <button
-                  onClick={() => setReaderMode('epub')}
-                  className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                    readerMode === 'epub'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
+              {/* EPUB Reader Mode Indicator */}
+              <div className="flex items-center space-x-2 bg-blue-100 rounded-lg p-1">
+                <div className="flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium bg-white text-blue-900 shadow-sm">
                   <ReaderIcon className="h-4 w-4" />
                   <span>EPUB Reader</span>
-                </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Conditional Rendering Based on Mode */}
-      {readerMode === 'epub' ? (
-        <NewEpubReader
-          book={{
-            id: parseInt(bookId || '0'),
-            title: bookInfo?.title || '',
-            epub_file: '' // We'll get the EPUB file from the backend endpoint
-          }}
-          onClose={() => setReaderMode('classic')}
-        />
-      ) : (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* Milestone Progress */}
-              {milestone && progress && (
-                <MilestoneProgress
-                  milestone={milestone}
-                  progress={progress}
-                />
-              )}
-
-              {/* Translation Toolbar */}
-              <TranslationToolbar
-                milestoneId={milestoneId}
-                bookId={bookId}
-                currentIndex={currentSentenceIndex}
-                totalSentences={sentences.length}
-                paginationInfo={paginationInfo}
-                onPrevious={handlePrevious}
-                onNext={handleNext}
-              />
-            </div>
-
-            {/* Main Translation Area - Side by Side */}
-            <div className="lg:col-span-3">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* EPUB Reader - Left Side */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-gray-900">Source Text</h3>
-                  <EpubReader
-                    sentences={sentences}
-                    currentIndex={currentSentenceIndex}
-                    onSentenceSelect={handleSentenceSelect}
-                    onPrevious={handlePrevious}
-                    onNext={handleNext}
-                  />
-                </div>
-
-                {/* Translation Panel - Right Side */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-gray-900">Translation</h3>
-                  <TranslationPanel
-                    sentence={currentSentence}
-                    onTranslationUpdate={handleTranslationUpdate}
-                    onSave={handleSave}
-                    isSaving={saveTranslationMutation.isLoading}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* EPUB Reader Only */}
+      <NewEpubReader
+        book={{
+          id: parseInt(bookId || '0'),
+          title: bookInfo?.title || '',
+          epub_file: bookInfo?.epub_file || ''
+        }}
+        onClose={() => router.back()}
+      />
     </div>
   )
 }

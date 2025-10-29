@@ -46,7 +46,7 @@ export default function TranslationPanel({
   isSaving
 }: TranslationPanelProps) {
   const [translatedText, setTranslatedText] = useState(sentence?.translated_text || '')
-  const [translationMethod, setTranslationMethod] = useState<'typing' | 'speech'>('typing')
+  const [translationMethod, setTranslationMethod] = useState<'typing' | 'speech'>('speech')
   const [wordCount, setWordCount] = useState(0)
   const [charCount, setCharCount] = useState(0)
 
@@ -75,6 +75,7 @@ export default function TranslationPanel({
     setTranslatedText(text)
     onTranslationUpdate(text)
   }
+
 
   const getStatusIcon = () => {
     if (isSaving) {
@@ -147,26 +148,29 @@ export default function TranslationPanel({
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex space-x-4">
           <button
+            onClick={() => handleMethodChange('speech')}
+            className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium ${
+              translationMethod === 'speech'
+                ? 'bg-green-100 text-green-700 border-2 border-green-300'
+                : 'text-gray-500 hover:text-gray-700 border border-gray-200'
+            }`}
+          >
+            <MicrophoneIcon className="h-5 w-5 mr-2" />
+            Speech to Text
+            {translationMethod === 'speech' && (
+              <span className="ml-2 text-xs bg-green-200 px-2 py-1 rounded-full">Primary</span>
+            )}
+          </button>
+          <button
             onClick={() => handleMethodChange('typing')}
             className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
               translationMethod === 'typing'
-                ? 'bg-primary-100 text-primary-700'
+                ? 'bg-blue-100 text-blue-700'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             <PencilIcon className="h-4 w-4 mr-2" />
             Type Translation
-          </button>
-          <button
-            onClick={() => handleMethodChange('speech')}
-            className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
-              translationMethod === 'speech'
-                ? 'bg-primary-100 text-primary-700'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <MicrophoneIcon className="h-4 w-4 mr-2" />
-            Speech to Text
           </button>
         </div>
       </div>
@@ -265,13 +269,18 @@ export default function TranslationPanel({
 
           {/* Speech to Text Section */}
           {translationMethod === 'speech' && (
-            <div className="border-t border-gray-200 pt-4">
+            <div className="border-t border-gray-200 pt-6">
+              <div className="text-center mb-4">
+                <h4 className="text-lg font-medium text-gray-900 mb-2">Speak Your Translation</h4>
+                <p className="text-sm text-gray-600">Click the microphone and speak your translation in Urdu</p>
+              </div>
               <SpeechToTextButton
                 onTranscription={handleSpeechTranscription}
                 language="ur"
                 disabled={isSaving}
                 className="w-full"
                 savedTranslation={sentence.translated_text}
+                disableSave={true}
               />
             </div>
           )}

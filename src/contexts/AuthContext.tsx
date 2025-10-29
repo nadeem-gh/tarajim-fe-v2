@@ -54,7 +54,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (token && refreshToken) {
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-        const response = await api.get('/accounts/stats/')
+        
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auth check timeout')), 5000)
+        )
+        
+        const response = await Promise.race([
+          api.get('/accounts/stats/'),
+          timeoutPromise
+        ])
+        
         console.log('Auth check successful:', response.data.user)
         setUser(response.data.user)
       } else {

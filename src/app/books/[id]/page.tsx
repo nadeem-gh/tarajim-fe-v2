@@ -391,7 +391,7 @@ export default function BookDetail() {
               )}
               
               {/* Submit Application Button - Only for translators */}
-              {book.can_start_translation && !applicationStatus?.has_applied && (
+              {user?.role === 'translator' && workflowData?.requests?.some((req: any) => req.status === 'open') && !applicationStatus?.has_applied && (
                 <button
                   onClick={() => setShowApplicationModal(true)}
                   className="w-full flex items-center justify-center px-4 py-2 border border-green-600 text-sm font-medium rounded-md text-green-600 bg-white hover:bg-green-50"
